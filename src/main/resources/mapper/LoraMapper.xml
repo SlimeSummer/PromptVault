@@ -2,6 +2,21 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.promptvault.mapper.LoraMapper">
 
+    <!-- 排序列名由 service 白名单校验后传入，避免 SQL 注入 -->
+    <sql id="sortClause">
+        <choose>
+            <when test="sort == 'name'">l.name</when>
+            <when test="sort == 'baseModel'">l.base_model</when>
+            <when test="sort == 'triggerWords'">l.trigger_words</when>
+            <when test="sort == 'presetCount'">preset_count</when>
+            <otherwise>l.updated_at</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'"> ASC</when>
+            <otherwise> DESC</otherwise>
+        </choose>
+    </sql>
+
     <select id="list" resultType="com.promptvault.entity.Lora">
         SELECT l.*,
                (SELECT COUNT(*) FROM preset p WHERE p.lora_id = l.id) AS preset_count
@@ -13,7 +28,7 @@
                      OR l.note LIKE '%' || #{keyword} || '%')
             </if>
         </where>
-        ORDER BY l.updated_at DESC, l.id DESC
+        ORDER BY <include refid="sortClause"/>, l.id DESC
     </select>
 
     <select id="findById" resultType="com.promptvault.entity.Lora">

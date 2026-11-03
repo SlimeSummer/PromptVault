@@ -35,9 +35,18 @@ public class TagController {
     public ApiResponse<Map<String, Object>> list(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String order,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(tagService.page(keyword, category, page, size));
+        return ApiResponse.ok(tagService.page(keyword, category, sort, order, page, size));
+    }
+
+    @GetMapping("/suggest")
+    public ApiResponse<List<Map<String, Object>>> suggest(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "8") int limit) {
+        return ApiResponse.ok(tagService.suggest(keyword, limit));
     }
 
     @GetMapping("/stats")

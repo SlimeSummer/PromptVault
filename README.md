@@ -41,6 +41,7 @@ PromptVault 想把这三件事拆开解决：**存得住、找得到、拼得快
 | 全局词库（增删改查 / 分类过滤 / 中英文搜索 / 批量导入） | ✅ 已完成 |
 | LoRA 档案与预设（正负向 / 状态 / 排序 / 权重 / 复制派生） | ✅ 已完成 |
 | 系统设置（自定义词条分类 / 自定义 LoRA 底模） | ✅ 已完成 |
+| 词库交互（搜索补全 / 搜索按钮 / 表头排序 / 列宽拖动） | ✅ 已完成 |
 | 词组库（经验组合管理） | 🚧 开发中 |
 | 结构化编辑区（九分区 / 拖拽排序 / 权重 / 导出） | ⏳ 待开发 |
 | ComfyUI PNG 元数据反向导入 | ⏳ 待开发 |
@@ -121,7 +122,7 @@ PromptVault/
 | 架构决策记录（ADR） | 重大技术/产品选择的背景与后果 | [docs/adr](docs/adr/) |
 | 写作约定 | 何时写、怎么写、模板 | [docs/README.md](docs/README.md) |
 
-- 阶段日志：[阶段 0 · 项目骨架](docs/devlog/stage-0.md) · [阶段 1 · 全局词库](docs/devlog/stage-1.md) · [阶段 2 · LoRA 档案与预设](docs/devlog/stage-2.md) · [阶段 2.5a · 设置驱动分类](docs/devlog/stage-2.5a.md)
+- 阶段日志：[阶段 0 · 项目骨架](docs/devlog/stage-0.md) · [阶段 1 · 全局词库](docs/devlog/stage-1.md) · [阶段 2 · LoRA 档案与预设](docs/devlog/stage-2.md) · [阶段 2.5a · 设置驱动分类](docs/devlog/stage-2.5a.md) · [阶段 2.5b · 词库交互](docs/devlog/stage-2.5b.md)
 - 决策记录：[ADR-0001 本地 Web 应用](docs/adr/0001-local-web-app.md) · [ADR-0002 一次建全表结构](docs/adr/0002-schema-single-shot.md) · [ADR-0003 预设是角色基线](docs/adr/0003-preset-as-character-baseline.md) · [ADR-0004 负向词三层合并](docs/adr/0004-negative-prompt-layers.md) · [ADR-0005 设置驱动分类](docs/adr/0005-settings-driven-categories.md)
 
 > README 记录"现在是什么样"，devlog 记录"怎么变成这样"，ADR 记录"为什么这样定"。
@@ -133,11 +134,13 @@ PromptVault/
 | 模块 | 接口 |
 | --- | --- |
 | 健康检查 | `GET /api/health` |
-| 全局词库 | `GET/POST /api/tags`、`PUT/DELETE /api/tags/{id}`、`POST /api/tags/batch`、`GET /api/tags/stats`、`GET /api/tags/categories` |
+| 全局词库 | `GET/POST /api/tags`、`PUT/DELETE /api/tags/{id}`、`POST /api/tags/batch`、`GET /api/tags/stats`、`GET /api/tags/categories`、`GET /api/tags/suggest` |
 | LoRA 档案 | `GET/POST /api/loras`、`GET/PUT/DELETE /api/loras/{id}`、`GET /api/loras/{id}/presets` |
 | 预设 | `POST /api/presets`、`GET/PUT/DELETE /api/presets/{id}`、`POST /api/presets/{id}/duplicate` |
 | 预设条目 | `POST /api/presets/{id}/items`、`PUT/DELETE /api/presets/{id}/items/{itemId}`、`PUT /api/presets/{id}/items/order` |
 | 系统设置 | `GET/PUT /api/settings` |
+
+> 词库与 LoRA 列表支持 `sort` / `order` 查询参数（字段白名单校验），用于表头排序。
 
 ## 数据与备份
 
@@ -153,7 +156,7 @@ PromptVault/
 | 1 | 全局词库 | ✅ |
 | 2 | LoRA 档案与预设 | ✅ |
 | 2.5a | 设置页 · 自定义分类与底模 | ✅ |
-| 2.5b | 词库交互（搜索按钮 · 搜索补全 · 表头排序 · 列宽拖动） | ⏳ |
+| 2.5b | 词库交互（搜索按钮 · 搜索补全 · 表头排序 · 列宽拖动） | ✅ |
 | 2.5c | 词条收藏 | ⏳ |
 | 2.5d | 批量导入自动分类（规则版） | ⏳ |
 | 3 | 词组库 | 🚧 |

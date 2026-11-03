@@ -24,6 +24,9 @@ public class TagService {
     private static final Pattern WEIGHT_PATTERN =
             Pattern.compile("^\\(\\s*(.+?)\\s*:\\s*-?\\d+(?:\\.\\d+)?\\s*\\)$");
 
+    /** 表头可排序字段白名单，其余一律回退到 updated_at */
+    private static final Set<String> SORT_FIELDS = Set.of("prompt", "nameZh", "category");
+
     private final TagMapper tagMapper;
     private final SettingService settingService;
 
@@ -32,14 +35,17 @@ public class TagService {
         this.settingService = settingService;
     }
 
-    public Map<String, Object> page(String keyword, String category, int page, int size) {
+    public Map<String, Object> page(String keyword, String category, String sort, String order,
+                                    int page, int size) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 200);
         String kw = keyword == null ? null : keyword.trim();
         String cat = category == null ? null : category.trim();
+        String safeSort = sort != null && SORT_FIELDS.contains(sort) ? sort : null;
+        String safeOrder = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
 
         long total = tagMapper.count(kw, cat);
-        List<Tag> list = tagMapper.list(kw, cat, (safePage - 1) * safeSize, safeSize);
+        List<Tag> list = tagMapper.list(kw, cat, safeSort, safeOrder, (safePage - 1) * safeSize, safeSize);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("list", list);
@@ -47,6 +53,15 @@ public class TagService {
         result.put("page", safePage);
         result.put("size", safeSize);
         return result;
+    }
+
+    public List<Map<String, Object>> suggest(String keyword, int limit) {
+        String kw = keyword == null ? "" : keyword.trim();
+        if (kw.isEmpty()) {
+            return List.of();
+        }
+        int safeLimit = Math.min(Math.max(limit, 1), 20);
+        return tagMapper.suggest(kw, safeLimit);
     }
 
     public Map<String, Object> stats() {

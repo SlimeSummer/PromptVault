@@ -29,8 +29,15 @@
       <span class="total">共 {{ loras.length }} 个 LoRA</span>
     </section>
 
-    <el-table v-loading="loading" :data="loras" stripe class="table">
-      <el-table-column label="名称" min-width="180">
+    <el-table
+      v-loading="loading"
+      :data="loras"
+      stripe
+      border
+      class="table"
+      @sort-change="onSortChange"
+    >
+      <el-table-column prop="name" label="名称" min-width="180" sortable="custom">
         <template #default="{ row }">
           <span class="lora-name">{{ row.name }}</span>
           <el-tag size="small" effect="light" :type="row.source === 'self_trained' ? 'warning' : 'info'">
@@ -39,20 +46,20 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="底模" width="120">
+      <el-table-column prop="baseModel" label="底模" width="120" sortable="custom">
         <template #default="{ row }">
           <span class="muted">{{ row.baseModel || '—' }}</span>
         </template>
       </el-table-column>
 
-      <el-table-column label="触发词" min-width="200">
+      <el-table-column prop="triggerWords" label="触发词" min-width="200" sortable="custom">
         <template #default="{ row }">
           <code v-if="row.triggerWords" class="prompt-text">{{ row.triggerWords }}</code>
           <span v-else class="muted">—</span>
         </template>
       </el-table-column>
 
-      <el-table-column label="预设" width="90" align="center">
+      <el-table-column prop="presetCount" label="预设" width="90" align="center" sortable="custom">
         <template #default="{ row }">
           <el-tag size="small" type="success" effect="plain">{{ row.presetCount || 0 }}</el-tag>
         </template>
@@ -130,7 +137,7 @@
         <span class="muted">预设 = 角色基线，动作 / 场景 / 表情留给编辑区</span>
       </div>
 
-      <el-table v-loading="presetLoading" :data="presets" stripe>
+      <el-table v-loading="presetLoading" :data="presets" stripe border>
         <el-table-column label="名称" min-width="160">
           <template #default="{ row }">
             <span class="lora-name">{{ row.name }}</span>
@@ -328,6 +335,8 @@ const SECTIONS = [
 ]
 
 const keyword = ref('')
+const sortField = ref('')
+const sortOrder = ref('')
 const loading = ref(false)
 const loras = ref([])
 
@@ -384,12 +393,18 @@ function itemsOf(polarity) {
 async function loadLoras() {
   loading.value = true
   try {
-    loras.value = await fetchLoras(keyword.value)
+    loras.value = await fetchLoras(keyword.value, sortField.value, sortOrder.value)
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
     loading.value = false
   }
+}
+
+function onSortChange({ prop, order }) {
+  sortField.value = order ? prop : ''
+  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  loadLoras()
 }
 
 function openLoraDialog(row) {

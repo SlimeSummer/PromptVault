@@ -12,6 +12,11 @@ export function fetchTags(params = {}) {
 
 export const fetchTagStats = () => get('/api/tags/stats')
 
+export function fetchTagSuggestions(keyword, limit = 8) {
+  const query = new URLSearchParams({ keyword, limit })
+  return get(`/api/tags/suggest?${query.toString()}`)
+}
+
 export const createTag = (data) => post('/api/tags', data)
 
 export const updateTag = (id, data) => put(`/api/tags/${id}`, data)

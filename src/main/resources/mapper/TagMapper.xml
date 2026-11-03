@@ -13,10 +13,24 @@
         </where>
     </sql>
 
+    <!-- 排序列名由 service 白名单校验后传入，避免 SQL 注入 -->
+    <sql id="sortClause">
+        <choose>
+            <when test="sort == 'prompt'">prompt</when>
+            <when test="sort == 'nameZh'">name_zh</when>
+            <when test="sort == 'category'">category</when>
+            <otherwise>updated_at</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc'"> ASC</when>
+            <otherwise> DESC</otherwise>
+        </choose>
+    </sql>
+
     <select id="list" resultType="com.promptvault.entity.Tag">
         SELECT * FROM tag
         <include refid="filters"/>
-        ORDER BY updated_at DESC, id DESC
+        ORDER BY <include refid="sortClause"/>, id DESC
         LIMIT #{size} OFFSET #{offset}
     </select>
 
@@ -27,6 +41,16 @@
 
     <select id="countByCategory" resultType="java.util.Map">
         SELECT category, COUNT(*) AS cnt FROM tag GROUP BY category
+    </select>
+
+    <select id="suggest" resultType="java.util.Map">
+        SELECT prompt, name_zh AS nameZh, category FROM tag
+        WHERE prompt LIKE '%' || #{keyword} || '%'
+           OR name_zh LIKE '%' || #{keyword} || '%'
+        ORDER BY CASE WHEN lower(prompt) LIKE lower(#{keyword}) || '%' THEN 0 ELSE 1 END,
+                 length(prompt),
+                 prompt
+        LIMIT #{limit}
     </select>
 
     <select id="findById" resultType="com.promptvault.entity.Tag">

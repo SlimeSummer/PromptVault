@@ -30,8 +30,11 @@ public class LoraController {
     }
 
     @GetMapping
-    public ApiResponse<List<Lora>> list(@RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(loraService.list(keyword));
+    public ApiResponse<List<Lora>> list(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String order) {
+        return ApiResponse.ok(loraService.list(keyword, sort, order));
     }
 
     @GetMapping("/{id}")

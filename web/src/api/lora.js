@@ -1,7 +1,15 @@
 import { del, get, post, put } from './http'
 
-export function fetchLoras(keyword = '') {
-  return get(`/api/loras?keyword=${encodeURIComponent(keyword)}`)
+export function fetchLoras(keyword = '', sort = '', order = '') {
+  const query = new URLSearchParams()
+  if (keyword) {
+    query.append('keyword', keyword)
+  }
+  if (sort) {
+    query.append('sort', sort)
+    query.append('order', order)
+  }
+  return get(`/api/loras?${query.toString()}`)
 }
 
 export const fetchLora = (id) => get(`/api/loras/${id}`)

@@ -12,18 +12,32 @@
     </header>
 
     <section class="toolbar">
-      <el-input
+      <el-autocomplete
         v-model="keyword"
-        placeholder="搜索英文标签 / 中文释义，回车确认"
+        :fetch-suggestions="querySuggestions"
+        :trigger-on-focus="false"
+        :highlight-first-item="false"
         clearable
+        placeholder="搜索英文标签 / 中文释义，回车确认"
         style="width: 340px"
         @keyup.enter="onSearch"
+        @select="onSearch"
         @clear="onSearch"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
-      </el-input>
+        <template #default="{ item }">
+          <span style="font-family: 'JetBrains Mono', Consolas, monospace; font-size: 13px; color: #3b3f46">
+            {{ item.prompt }}
+          </span>
+          <span style="float: right; margin-left: 16px; font-size: 12px; color: #9aa0a6">
+            {{ item.nameZh || '' }}
+          </span>
+        </template>
+      </el-autocomplete>
+
+      <el-button :icon="Search" @click="onSearch">搜索</el-button>
 
       <el-select
         v-model="category"
@@ -43,21 +57,28 @@
       <span class="total">当前筛选 {{ total }} 条</span>
     </section>
 
-    <el-table v-loading="loading" :data="tags" stripe class="table">
-      <el-table-column label="提示词" min-width="260">
+    <el-table
+      v-loading="loading"
+      :data="tags"
+      stripe
+      border
+      class="table"
+      @sort-change="onSortChange"
+    >
+      <el-table-column prop="prompt" label="提示词" width="220" sortable="custom">
         <template #default="{ row }">
           <code class="prompt-text">{{ row.prompt }}</code>
           <el-button link type="primary" size="small" @click="copy(row.prompt)">复制</el-button>
         </template>
       </el-table-column>
 
-      <el-table-column prop="nameZh" label="中文释义" width="170">
+      <el-table-column prop="nameZh" label="中文释义" width="180" sortable="custom">
         <template #default="{ row }">
           <span class="muted">{{ row.nameZh || '—' }}</span>
         </template>
       </el-table-column>
 
-      <el-table-column label="分类" width="110">
+      <el-table-column prop="category" label="分类" width="120" sortable="custom">
         <template #default="{ row }">
           <el-tag :type="typeOf(row.category)" effect="light" size="small">
             {{ labelOf(row.category) }}
@@ -188,6 +209,7 @@ import {
   createTag,
   deleteTag,
   fetchTagStats,
+  fetchTagSuggestions,
   fetchTags,
   updateTag
 } from '@/api/tag'
@@ -228,6 +250,8 @@ const page = ref(1)
 const size = ref(20)
 const keyword = ref('')
 const category = ref('')
+const sortField = ref('')
+const sortOrder = ref('')
 const stats = reactive({ total: 0, categories: {} })
 
 const dialogVisible = ref(false)
@@ -270,6 +294,8 @@ async function load() {
     const data = await fetchTags({
       keyword: keyword.value,
       category: category.value,
+      sort: sortField.value,
+      order: sortOrder.value,
       page: page.value,
       size: size.value
     })
@@ -295,6 +321,27 @@ async function loadStats() {
 function onSearch() {
   page.value = 1
   load()
+}
+
+function onSortChange({ prop, order }) {
+  sortField.value = order ? prop : ''
+  sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
+  page.value = 1
+  load()
+}
+
+async function querySuggestions(queryString, callback) {
+  const query = (queryString || '').trim()
+  if (!query) {
+    callback([])
+    return
+  }
+  try {
+    const list = await fetchTagSuggestions(query)
+    callback((list || []).map((item) => ({ ...item, value: item.prompt })))
+  } catch (e) {
+    callback([])
+  }
 }
 
 function onPageChange(value) {

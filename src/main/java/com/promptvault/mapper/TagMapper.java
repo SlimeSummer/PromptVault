@@ -10,11 +10,17 @@ public interface TagMapper {
 
     List<Tag> list(@Param("keyword") String keyword,
                    @Param("category") String category,
+                   @Param("sort") String sort,
+                   @Param("order") String order,
                    @Param("offset") int offset,
                    @Param("size") int size);
 
     long count(@Param("keyword") String keyword,
                @Param("category") String category);
+
+    /** 搜索补全：按前缀优先返回已有词条 */
+    List<Map<String, Object>> suggest(@Param("keyword") String keyword,
+                                      @Param("limit") int limit);
 
     List<Map<String, Object>> countByCategory();
 

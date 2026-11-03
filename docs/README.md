@@ -15,7 +15,8 @@ docs/
 │   ├── stage-0.md         # 项目骨架与数据模型
 │   ├── stage-1.md         # 全局词库
 │   ├── stage-2.md         # LoRA 档案与预设
-│   └── stage-2.5a.md      # 设置页：自定义分类与底模
+│   ├── stage-2.5a.md      # 设置页：自定义分类与底模
+│   └── stage-2.5b.md      # 词库交互：搜索补全 / 排序 / 列宽
 └── adr/
     ├── 0001-local-web-app.md
     ├── 0002-schema-single-shot.md

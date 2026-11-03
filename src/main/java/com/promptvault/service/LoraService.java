@@ -8,11 +8,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class LoraService {
 
     public static final List<String> SOURCES = List.of("self_trained", "third_party");
+
+    /** 表头可排序字段白名单，其余一律回退到 updated_at */
+    private static final Set<String> SORT_FIELDS =
+            Set.of("name", "baseModel", "triggerWords", "presetCount");
 
     private final LoraMapper loraMapper;
     private final PresetMapper presetMapper;
@@ -22,9 +27,11 @@ public class LoraService {
         this.presetMapper = presetMapper;
     }
 
-    public List<Lora> list(String keyword) {
+    public List<Lora> list(String keyword, String sort, String order) {
         String kw = keyword == null ? null : keyword.trim();
-        return loraMapper.list(kw);
+        String safeSort = sort != null && SORT_FIELDS.contains(sort) ? sort : null;
+        String safeOrder = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
+        return loraMapper.list(kw, safeSort, safeOrder);
     }
 
     public Lora get(Long id) {

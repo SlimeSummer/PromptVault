@@ -7,7 +7,9 @@ import java.util.List;
 
 public interface LoraMapper {
 
-    List<Lora> list(@Param("keyword") String keyword);
+    List<Lora> list(@Param("keyword") String keyword,
+                    @Param("sort") String sort,
+                    @Param("order") String order);
 
     Lora findById(@Param("id") Long id);
 
