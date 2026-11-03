@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.TagMapper">
+
+    <sql id="filters">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (prompt LIKE '%' || #{keyword} || '%' OR name_zh LIKE '%' || #{keyword} || '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+        </where>
+    </sql>
+
+    <select id="list" resultType="com.promptvault.entity.Tag">
+        SELECT * FROM tag
+        <include refid="filters"/>
+        ORDER BY updated_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM tag
+        <include refid="filters"/>
+    </select>
+
+    <select id="countByCategory" resultType="java.util.Map">
+        SELECT category, COUNT(*) AS cnt FROM tag GROUP BY category
+    </select>
+
+    <select id="findById" resultType="com.promptvault.entity.Tag">
+        SELECT * FROM tag WHERE id = #{id}
+    </select>
+
+    <select id="countByPrompt" resultType="long">
+        SELECT COUNT(*) FROM tag WHERE prompt = #{prompt}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countReferences" resultType="long">
+        SELECT (SELECT COUNT(*) FROM preset_item WHERE tag_id = #{id})
+             + (SELECT COUNT(*) FROM tag_group_item WHERE tag_id = #{id})
+             + (SELECT COUNT(*) FROM workspace_item WHERE item_type = 'tag' AND ref_id = #{id}) AS total
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tag (prompt, name_zh, category, lora_id, note)
+        VALUES (#{prompt}, #{nameZh}, #{category}, #{loraId}, #{note})
+    </insert>
+
+    <update id="update">
+        UPDATE tag
+        SET prompt = #{prompt},
+            name_zh = #{nameZh},
+            category = #{category},
+            lora_id = #{loraId},
+            note = #{note},
+            updated_at = datetime('now', 'localtime')
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM tag WHERE id = #{id}
+    </delete>
+</mapper>

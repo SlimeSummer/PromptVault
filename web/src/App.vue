@@ -1,47 +1,59 @@
 <template>
-  <el-container class="shell">
-    <el-header class="header">
+  <div class="layout">
+    <aside class="sidebar">
       <div class="brand">
         <span class="logo">PV</span>
-        <span class="title">PromptVault</span>
-        <span class="tagline">ComfyUI 提示词经验库</span>
+        <div class="brand-text">
+          <div class="name">PromptVault</div>
+          <div class="sub">提示词经验库</div>
+        </div>
       </div>
-      <el-tag :type="online ? 'success' : 'danger'" effect="dark" round>
+
+      <nav class="menu">
+        <router-link to="/tags" class="menu-item" active-class="active">
+          <el-icon><Collection /></el-icon>
+          <span>全局词库</span>
+        </router-link>
+        <div class="menu-item locked">
+          <el-icon><Postcard /></el-icon>
+          <span>LoRA 档案</span>
+          <em>阶段 2</em>
+        </div>
+        <div class="menu-item locked">
+          <el-icon><Files /></el-icon>
+          <span>词组库</span>
+          <em>阶段 3</em>
+        </div>
+        <div class="menu-item locked">
+          <el-icon><EditPen /></el-icon>
+          <span>编辑区</span>
+          <em>阶段 4</em>
+        </div>
+      </nav>
+
+      <div class="status">
+        <i :class="{ on: online }"></i>
         {{ online ? '后端已连接' : '后端未连接' }}
-      </el-tag>
-    </el-header>
+      </div>
+    </aside>
 
-    <el-main class="main">
-      <el-result icon="success" title="阶段 0 · 项目骨架已就绪">
-        <template #subtitle>
-          <p>数据库已初始化，前后端链路通畅。</p>
-          <p class="hint">接下来按模块交付：词库 → LoRA 预设 → 词组 → 结构化编辑区 → PNG 导入 → AI 生成。</p>
-        </template>
-      </el-result>
-
-      <el-descriptions v-if="info" :column="3" border class="info">
-        <el-descriptions-item label="服务状态">{{ info.status }}</el-descriptions-item>
-        <el-descriptions-item label="数据表数量">{{ info.tables }}</el-descriptions-item>
-        <el-descriptions-item label="服务器时间">{{ info.time }}</el-descriptions-item>
-      </el-descriptions>
-    </el-main>
-  </el-container>
+    <main class="content">
+      <router-view />
+    </main>
+  </div>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { Collection, EditPen, Files, Postcard } from '@element-plus/icons-vue'
 
 const online = ref(false)
-const info = ref(null)
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/health')
-    const body = await res.json()
-    if (body.code === 0) {
-      online.value = true
-      info.value = body.data
-    }
+    const response = await fetch('/api/health')
+    const body = await response.json()
+    online.value = body.code === 0
   } catch (e) {
     online.value = false
   }
@@ -49,63 +61,120 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.shell {
+.layout {
+  display: flex;
   min-height: 100vh;
   background: #f5f6f8;
 }
 
-.header {
+.sidebar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  width: 220px;
+  flex-shrink: 0;
   background: #1b1d22;
   color: #fff;
-  border-bottom: 2px solid #6c5ce7;
+  padding: 20px 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 0 8px 22px;
+  border-bottom: 1px solid #2b2e35;
 }
 
 .logo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: linear-gradient(135deg, #6c5ce7, #a29bfe);
   font-weight: 700;
   letter-spacing: 1px;
 }
 
-.title {
-  font-size: 20px;
+.name {
+  font-size: 17px;
   font-weight: 600;
-  letter-spacing: 0.5px;
 }
 
-.tagline {
+.sub {
+  font-size: 11px;
+  color: #8b909a;
+}
+
+.menu {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #c7cbd4;
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.menu-item:hover {
+  background: #262931;
+  color: #fff;
+}
+
+.menu-item.active {
+  background: #6c5ce7;
+  color: #fff;
+}
+
+.menu-item.locked {
+  color: #6b707a;
+  cursor: not-allowed;
+}
+
+.menu-item em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10px;
+  color: #6b707a;
+}
+
+.status {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 2px;
   font-size: 12px;
-  color: #9aa0a6;
+  color: #8b909a;
 }
 
-.main {
-  max-width: 960px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 32px 20px;
+.status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f56c6c;
 }
 
-.hint {
-  color: #909399;
-  font-size: 13px;
-  margin-top: 8px;
+.status i.on {
+  background: #67c23a;
 }
 
-.info {
-  margin-top: 8px;
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 32px 48px;
 }
 </style>

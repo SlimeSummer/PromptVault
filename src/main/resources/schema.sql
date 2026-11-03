@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS tag (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     prompt     TEXT    NOT NULL COLLATE NOCASE,  -- 实际写入 ComfyUI 的英文标签
     name_zh    TEXT,                             -- 中文释义/别名，用于中文搜索
-    category   TEXT    NOT NULL DEFAULT 'other', -- trigger/quality/style/outfit/scene/action/expression/detail/other
+    category   TEXT    NOT NULL DEFAULT 'other', -- trigger/quality/style/outfit/scene/action/expression/detail/negative/other
     lora_id    INTEGER,                          -- 归属 LoRA，NULL 表示通用标签
     note       TEXT,
     usage_count INTEGER NOT NULL DEFAULT 0,

@@ -38,8 +38,8 @@ PromptVault 想把这三件事拆开解决：**存得住、找得到、拼得快
 | 模块 | 状态 |
 | --- | --- |
 | 项目骨架 · SQLite 数据模型 · 前后端联通 | ✅ 已完成 |
-| 全局词库（增删改查 / 分类过滤 / 中英文搜索 / 批量导入） | 🚧 开发中 |
-| LoRA 档案与预设（正负向 / 状态 / 复制派生） | ⏳ 待开发 |
+| 全局词库（增删改查 / 分类过滤 / 中英文搜索 / 批量导入） | ✅ 已完成 |
+| LoRA 档案与预设（正负向 / 状态 / 复制派生） | 🚧 开发中 |
 | 词组库（经验组合管理） | ⏳ 待开发 |
 | 结构化编辑区（九分区 / 拖拽排序 / 权重 / 导出） | ⏳ 待开发 |
 | ComfyUI PNG 元数据反向导入 | ⏳ 待开发 |
@@ -85,15 +85,25 @@ PromptVault/
 ├── mvnw / mvnw.cmd              # Maven Wrapper
 ├── src/main/java/com/promptvault/
 │   ├── PromptVaultApplication.java
-│   ├── common/ApiResponse.java  # 统一响应结构
-│   └── web/HealthController.java
+│   ├── common/                  # 统一响应、业务异常、全局异常处理
+│   ├── dto/                     # 请求对象
+│   ├── entity/                  # 数据实体
+│   ├── mapper/                  # MyBatis Mapper 接口
+│   ├── service/                 # 业务逻辑
+│   └── web/                     # REST 接口
 ├── src/main/resources/
 │   ├── application.yml
-│   └── schema.sql               # 10 张表的结构定义（幂等）
+│   ├── schema.sql               # 10 张表的结构定义（幂等）
+│   └── mapper/TagMapper.xml     # MyBatis SQL
 └── web/                         # Vue 3 前端
     ├── package.json
     ├── vite.config.js           # /api 代理到 8080
     └── src/
+        ├── api/                 # 请求封装
+        ├── router/              # 路由
+        ├── views/               # 页面
+        ├── App.vue              # 侧边栏布局
+        └── main.js
 ```
 
 ## 数据与备份
@@ -107,8 +117,8 @@ PromptVault/
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | 0 | 项目骨架与数据模型 | ✅ |
-| 1 | 全局词库 | 🚧 |
-| 2 | LoRA 档案与预设 | ⏳ |
+| 1 | 全局词库 | ✅ |
+| 2 | LoRA 档案与预设 | 🚧 |
 | 3 | 词组库 | ⏳ |
 | 4 | 结构化编辑区 | ⏳ |
 | 5 | PNG 元数据导入 | ⏳ |
