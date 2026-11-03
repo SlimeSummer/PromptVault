@@ -1,6 +1,7 @@
 package com.promptvault.service;
 
 import com.promptvault.common.BizException;
+import com.promptvault.dto.CategoryOption;
 import com.promptvault.dto.TagBatchRequest;
 import com.promptvault.entity.Tag;
 import com.promptvault.mapper.TagMapper;
@@ -19,18 +20,16 @@ import java.util.regex.Pattern;
 @Service
 public class TagService {
 
-    public static final List<String> CATEGORIES = List.of(
-            "trigger", "quality", "style", "outfit", "scene",
-            "action", "expression", "detail", "negative", "other");
-
     /** 匹配 (tag:1.2) 这种权重写法，导入时把权重剥掉只留标签本体 */
     private static final Pattern WEIGHT_PATTERN =
             Pattern.compile("^\\(\\s*(.+?)\\s*:\\s*-?\\d+(?:\\.\\d+)?\\s*\\)$");
 
     private final TagMapper tagMapper;
+    private final SettingService settingService;
 
-    public TagService(TagMapper tagMapper) {
+    public TagService(TagMapper tagMapper, SettingService settingService) {
         this.tagMapper = tagMapper;
+        this.settingService = settingService;
     }
 
     public Map<String, Object> page(String keyword, String category, int page, int size) {
@@ -52,8 +51,8 @@ public class TagService {
 
     public Map<String, Object> stats() {
         Map<String, Object> byCategory = new LinkedHashMap<>();
-        for (String c : CATEGORIES) {
-            byCategory.put(c, 0L);
+        for (CategoryOption option : settingService.getCategories()) {
+            byCategory.put(option.getValue(), 0L);
         }
         long total = 0;
         for (Map<String, Object> row : tagMapper.countByCategory()) {
@@ -113,7 +112,7 @@ public class TagService {
             throw new BizException("导入内容为空");
         }
         String category = request.getCategory() == null ? "other" : request.getCategory().trim();
-        if (!CATEGORIES.contains(category)) {
+        if (!settingService.hasCategory(category)) {
             throw new BizException("未知分类：" + category);
         }
 
@@ -161,7 +160,7 @@ public class TagService {
         tag.setPrompt(prompt);
 
         String category = tag.getCategory() == null ? "other" : tag.getCategory().trim();
-        if (!CATEGORIES.contains(category)) {
+        if (!settingService.hasCategory(category)) {
             throw new BizException("未知分类：" + category);
         }
         tag.setCategory(category);

@@ -14,11 +14,10 @@
           <el-icon><Collection /></el-icon>
           <span>全局词库</span>
         </router-link>
-        <div class="menu-item locked">
+        <router-link to="/loras" class="menu-item" active-class="active">
           <el-icon><Postcard /></el-icon>
           <span>LoRA 档案</span>
-          <em>阶段 2</em>
-        </div>
+        </router-link>
         <div class="menu-item locked">
           <el-icon><Files /></el-icon>
           <span>词组库</span>
@@ -29,6 +28,10 @@
           <span>编辑区</span>
           <em>阶段 4</em>
         </div>
+        <router-link to="/settings" class="menu-item" active-class="active">
+          <el-icon><Setting /></el-icon>
+          <span>设置</span>
+        </router-link>
       </nav>
 
       <div class="status">
@@ -45,7 +48,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { Collection, EditPen, Files, Postcard } from '@element-plus/icons-vue'
+import { Collection, EditPen, Files, Postcard, Setting } from '@element-plus/icons-vue'
 
 const online = ref(false)
 

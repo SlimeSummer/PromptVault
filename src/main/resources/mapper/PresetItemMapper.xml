@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.PresetItemMapper">
+
+    <select id="listByPreset" resultType="com.promptvault.entity.PresetItem">
+        SELECT pi.id, pi.preset_id, pi.tag_id, pi.polarity, pi.weight, pi.sort_order,
+               t.prompt, t.name_zh, t.category
+        FROM preset_item pi
+        JOIN tag t ON t.id = pi.tag_id
+        WHERE pi.preset_id = #{presetId}
+        ORDER BY pi.sort_order, pi.id
+    </select>
+
+    <select id="findById" resultType="com.promptvault.entity.PresetItem">
+        SELECT pi.id, pi.preset_id, pi.tag_id, pi.polarity, pi.weight, pi.sort_order,
+               t.prompt, t.name_zh, t.category
+        FROM preset_item pi
+        JOIN tag t ON t.id = pi.tag_id
+        WHERE pi.id = #{id}
+    </select>
+
+    <select id="countDuplicate" resultType="long">
+        SELECT COUNT(*) FROM preset_item
+        WHERE preset_id = #{presetId} AND tag_id = #{tagId} AND polarity = #{polarity}
+    </select>
+
+    <select id="maxSortOrder" resultType="int">
+        SELECT COALESCE(MAX(sort_order), -1) FROM preset_item
+        WHERE preset_id = #{presetId} AND polarity = #{polarity}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO preset_item (preset_id, tag_id, polarity, weight, sort_order)
+        VALUES (#{presetId}, #{tagId}, #{polarity}, #{weight}, #{sortOrder})
+    </insert>
+
+    <update id="update">
+        UPDATE preset_item
+        SET polarity = #{polarity},
+            weight = #{weight},
+            sort_order = #{sortOrder}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateSort">
+        UPDATE preset_item SET sort_order = #{sortOrder} WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM preset_item WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByPreset">
+        DELETE FROM preset_item WHERE preset_id = #{presetId}
+    </delete>
+</mapper>

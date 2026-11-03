@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.SettingMapper">
+
+    <select id="findAll" resultType="java.util.Map">
+        SELECT key, value FROM setting
+    </select>
+
+    <select id="findByKey" resultType="string">
+        SELECT value FROM setting WHERE key = #{key}
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO setting (key, value)
+        VALUES (#{key}, #{value})
+        ON CONFLICT(key) DO UPDATE
+        SET value = excluded.value,
+            updated_at = datetime('now', 'localtime')
+    </insert>
+</mapper>

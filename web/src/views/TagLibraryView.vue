@@ -33,7 +33,7 @@
         @change="onSearch"
       >
         <el-option
-          v-for="item in CATEGORIES"
+          v-for="item in categories"
           :key="item.value"
           :value="item.value"
           :label="`${item.label}（${countOf(item.value)}）`"
@@ -113,7 +113,7 @@
         <el-form-item label="分类" prop="category">
           <el-select v-model="form.category" style="width: 100%">
             <el-option
-              v-for="item in CATEGORIES"
+              v-for="item in categories"
               :key="item.value"
               :value="item.value"
               :label="item.label"
@@ -150,7 +150,7 @@
         <el-form-item label="归类为">
           <el-select v-model="batchCategory" style="width: 100%">
             <el-option
-              v-for="item in CATEGORIES"
+              v-for="item in categories"
               :key="item.value"
               :value="item.value"
               :label="item.label"
@@ -191,8 +191,9 @@ import {
   fetchTags,
   updateTag
 } from '@/api/tag'
+import { fetchTagCategories } from '@/api/setting'
 
-const CATEGORIES = [
+const FALLBACK_CATEGORIES = [
   { value: 'trigger', label: '触发词' },
   { value: 'quality', label: '质量词' },
   { value: 'style', label: '风格' },
@@ -204,6 +205,8 @@ const CATEGORIES = [
   { value: 'negative', label: '负面' },
   { value: 'other', label: '其他' }
 ]
+
+const categories = ref(FALLBACK_CATEGORIES)
 
 const CATEGORY_TYPES = {
   trigger: 'warning',
@@ -244,7 +247,13 @@ const batchLoading = ref(false)
 const batchResult = ref(null)
 
 function labelOf(value) {
-  return CATEGORIES.find((item) => item.value === value)?.label || value
+  return categories.value.find((item) => item.value === value)?.label || value
+}
+
+function defaultCategory() {
+  return categories.value.some((item) => item.value === 'other')
+    ? 'other'
+    : categories.value[0]?.value || 'other'
 }
 
 function typeOf(value) {
@@ -301,7 +310,7 @@ function onSizeChange(value) {
 
 function openCreate() {
   dialogMode.value = 'create'
-  Object.assign(form, { id: null, prompt: '', nameZh: '', category: 'other', note: '' })
+  Object.assign(form, { id: null, prompt: '', nameZh: '', category: defaultCategory(), note: '' })
   dialogVisible.value = true
 }
 
@@ -382,6 +391,9 @@ async function copy(text) {
 }
 
 function openBatch() {
+  if (!categories.value.some((item) => item.value === batchCategory.value)) {
+    batchCategory.value = defaultCategory()
+  }
   batchResult.value = null
   batchVisible.value = true
 }
@@ -410,11 +422,23 @@ async function submitBatch() {
 
 function resetBatch() {
   batchText.value = ''
-  batchCategory.value = 'other'
+  batchCategory.value = defaultCategory()
   batchResult.value = null
 }
 
+async function loadCategories() {
+  try {
+    const data = await fetchTagCategories()
+    if (Array.isArray(data) && data.length) {
+      categories.value = data
+    }
+  } catch (e) {
+    categories.value = FALLBACK_CATEGORIES
+  }
+}
+
 onMounted(() => {
+  loadCategories()
   loadStats()
   load()
 })

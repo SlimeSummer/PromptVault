@@ -1,8 +1,10 @@
 package com.promptvault.web;
 
 import com.promptvault.common.ApiResponse;
+import com.promptvault.dto.CategoryOption;
 import com.promptvault.dto.TagBatchRequest;
 import com.promptvault.entity.Tag;
+import com.promptvault.service.SettingService;
 import com.promptvault.service.TagService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +24,11 @@ import java.util.Map;
 public class TagController {
 
     private final TagService tagService;
+    private final SettingService settingService;
 
-    public TagController(TagService tagService) {
+    public TagController(TagService tagService, SettingService settingService) {
         this.tagService = tagService;
+        this.settingService = settingService;
     }
 
     @GetMapping
@@ -42,8 +46,8 @@ public class TagController {
     }
 
     @GetMapping("/categories")
-    public ApiResponse<List<String>> categories() {
-        return ApiResponse.ok(TagService.CATEGORIES);
+    public ApiResponse<List<CategoryOption>> categories() {
+        return ApiResponse.ok(settingService.getCategories());
     }
 
     @PostMapping

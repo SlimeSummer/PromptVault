@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.LoraMapper">
+
+    <select id="list" resultType="com.promptvault.entity.Lora">
+        SELECT l.*,
+               (SELECT COUNT(*) FROM preset p WHERE p.lora_id = l.id) AS preset_count
+        FROM lora l
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (l.name LIKE '%' || #{keyword} || '%'
+                     OR l.trigger_words LIKE '%' || #{keyword} || '%'
+                     OR l.note LIKE '%' || #{keyword} || '%')
+            </if>
+        </where>
+        ORDER BY l.updated_at DESC, l.id DESC
+    </select>
+
+    <select id="findById" resultType="com.promptvault.entity.Lora">
+        SELECT l.*,
+               (SELECT COUNT(*) FROM preset p WHERE p.lora_id = l.id) AS preset_count
+        FROM lora l
+        WHERE l.id = #{id}
+    </select>
+
+    <select id="countByName" resultType="long">
+        SELECT COUNT(*) FROM lora WHERE name = #{name}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO lora (name, source, base_model, trigger_words, note, cover_path)
+        VALUES (#{name}, #{source}, #{baseModel}, #{triggerWords}, #{note}, #{coverPath})
+    </insert>
+
+    <update id="update">
+        UPDATE lora
+        SET name = #{name},
+            source = #{source},
+            base_model = #{baseModel},
+            trigger_words = #{triggerWords},
+            note = #{note},
+            cover_path = #{coverPath},
+            updated_at = datetime('now', 'localtime')
+        WHERE id = #{id}
+    </update>
+
+    <update id="clearTagReferences">
+        UPDATE tag SET lora_id = NULL WHERE lora_id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM lora WHERE id = #{id}
+    </delete>
+</mapper>
