@@ -37,9 +37,16 @@ public class TagController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String order,
+            @RequestParam(required = false) Boolean favorite,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(tagService.page(keyword, category, sort, order, page, size));
+        return ApiResponse.ok(tagService.page(keyword, category, sort, order, favorite, page, size));
+    }
+
+    @PostMapping("/{id}/favorite")
+    public ApiResponse<Map<String, Object>> toggleFavorite(@PathVariable Long id) {
+        boolean favorite = tagService.toggleFavorite(id);
+        return ApiResponse.ok(Map.of("favorite", favorite));
     }
 
     @GetMapping("/suggest")

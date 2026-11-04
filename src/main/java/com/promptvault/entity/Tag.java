@@ -14,6 +14,8 @@ public class Tag {
     private Integer usageCount;
     private String createdAt;
     private String updatedAt;
+    /** 列表查询时由 tag_favorite 联查得出，非 tag 表字段 */
+    private Boolean favorite;
 
     public Long getId() {
         return id;
@@ -85,5 +87,13 @@ public class Tag {
 
     public void setUpdatedAt(String updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getFavorite() {
+        return favorite;
+    }
+
+    public void setFavorite(Boolean favorite) {
+        this.favorite = favorite;
     }
 }

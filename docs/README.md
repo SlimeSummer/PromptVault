@@ -16,13 +16,15 @@ docs/
 │   ├── stage-1.md         # 全局词库
 │   ├── stage-2.md         # LoRA 档案与预设
 │   ├── stage-2.5a.md      # 设置页：自定义分类与底模
-│   └── stage-2.5b.md      # 词库交互：搜索补全 / 排序 / 列宽
+│   ├── stage-2.5b.md      # 词库交互：搜索补全 / 排序 / 列宽
+│   └── stage-2.5c.md      # 词条收藏
 └── adr/
     ├── 0001-local-web-app.md
     ├── 0002-schema-single-shot.md
     ├── 0003-preset-as-character-baseline.md
     ├── 0004-negative-prompt-layers.md
-    └── 0005-settings-driven-categories.md
+    ├── 0005-settings-driven-categories.md
+    └── 0006-schema-incremental-tables.md
 ```
 
 ## 何时写

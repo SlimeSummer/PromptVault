@@ -10,6 +10,9 @@
             <if test="category != null and category != ''">
                 AND category = #{category}
             </if>
+            <if test="favorite != null and favorite">
+                AND EXISTS (SELECT 1 FROM tag_favorite f WHERE f.tag_id = tag.id)
+            </if>
         </where>
     </sql>
 
@@ -28,7 +31,10 @@
     </sql>
 
     <select id="list" resultType="com.promptvault.entity.Tag">
-        SELECT * FROM tag
+        SELECT tag.*,
+               CASE WHEN EXISTS (SELECT 1 FROM tag_favorite f WHERE f.tag_id = tag.id)
+                    THEN 1 ELSE 0 END AS favorite
+        FROM tag
         <include refid="filters"/>
         ORDER BY <include refid="sortClause"/>, id DESC
         LIMIT #{size} OFFSET #{offset}
@@ -89,4 +95,16 @@
     <delete id="delete">
         DELETE FROM tag WHERE id = #{id}
     </delete>
+
+    <insert id="insertFavorite">
+        INSERT OR IGNORE INTO tag_favorite (tag_id) VALUES (#{id})
+    </insert>
+
+    <delete id="deleteFavorite">
+        DELETE FROM tag_favorite WHERE tag_id = #{id}
+    </delete>
+
+    <select id="countFavorite" resultType="long">
+        SELECT COUNT(*) FROM tag_favorite WHERE tag_id = #{id}
+    </select>
 </mapper>

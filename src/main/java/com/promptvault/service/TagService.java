@@ -36,7 +36,7 @@ public class TagService {
     }
 
     public Map<String, Object> page(String keyword, String category, String sort, String order,
-                                    int page, int size) {
+                                    Boolean favorite, int page, int size) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 200);
         String kw = keyword == null ? null : keyword.trim();
@@ -44,8 +44,9 @@ public class TagService {
         String safeSort = sort != null && SORT_FIELDS.contains(sort) ? sort : null;
         String safeOrder = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
 
-        long total = tagMapper.count(kw, cat);
-        List<Tag> list = tagMapper.list(kw, cat, safeSort, safeOrder, (safePage - 1) * safeSize, safeSize);
+        long total = tagMapper.count(kw, cat, favorite);
+        List<Tag> list = tagMapper.list(kw, cat, safeSort, safeOrder, favorite,
+                (safePage - 1) * safeSize, safeSize);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("list", list);
@@ -53,6 +54,19 @@ public class TagService {
         result.put("page", safePage);
         result.put("size", safeSize);
         return result;
+    }
+
+    /** 切换收藏状态，返回切换后的状态 */
+    public boolean toggleFavorite(Long id) {
+        if (tagMapper.findById(id) == null) {
+            throw new BizException("词条不存在，可能已被删除");
+        }
+        if (tagMapper.countFavorite(id) > 0) {
+            tagMapper.deleteFavorite(id);
+            return false;
+        }
+        tagMapper.insertFavorite(id);
+        return true;
     }
 
     public List<Map<String, Object>> suggest(String keyword, int limit) {
@@ -118,6 +132,7 @@ public class TagService {
         if (refs > 0) {
             throw new BizException("该词条正被 " + refs + " 处引用（预设/词组/编辑区），请先解除引用");
         }
+        tagMapper.deleteFavorite(id);
         tagMapper.delete(id);
     }
 

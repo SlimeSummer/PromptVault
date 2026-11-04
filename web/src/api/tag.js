@@ -23,4 +23,6 @@ export const updateTag = (id, data) => put(`/api/tags/${id}`, data)
 
 export const deleteTag = (id) => del(`/api/tags/${id}`)
 
+export const toggleTagFavorite = (id) => post(`/api/tags/${id}/favorite`)
+
 export const batchImportTags = (data) => post('/api/tags/batch', data)

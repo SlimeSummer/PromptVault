@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS tag (
 CREATE INDEX IF NOT EXISTS idx_tag_category ON tag (category);
 CREATE INDEX IF NOT EXISTS idx_tag_lora ON tag (lora_id);
 
+-- 词条收藏：独立于 tag，不给 tag 加列；删除词条时由业务层联动清理
+CREATE TABLE IF NOT EXISTS tag_favorite (
+    tag_id     INTEGER PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS preset (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     lora_id    INTEGER NOT NULL,

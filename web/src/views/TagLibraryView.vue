@@ -39,6 +39,8 @@
 
       <el-button :icon="Search" @click="onSearch">搜索</el-button>
 
+      <el-checkbox v-model="onlyFavorite" @change="onSearch">只看收藏</el-checkbox>
+
       <el-select
         v-model="category"
         :placeholder="`全部分类（${stats.total}）`"
@@ -65,6 +67,17 @@
       class="table"
       @sort-change="onSortChange"
     >
+      <el-table-column label="收藏" width="70" align="center">
+        <template #default="{ row }">
+          <el-button link class="star-btn" @click="onToggleFavorite(row)">
+            <el-icon :size="16" :color="row.favorite ? '#f7ba2a' : '#c0c4cc'">
+              <StarFilled v-if="row.favorite" />
+              <Star v-else />
+            </el-icon>
+          </el-button>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="prompt" label="提示词" width="220" sortable="custom">
         <template #default="{ row }">
           <code class="prompt-text">{{ row.prompt }}</code>
@@ -203,7 +216,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Upload } from '@element-plus/icons-vue'
+import { Plus, Search, Star, StarFilled, Upload } from '@element-plus/icons-vue'
 import {
   batchImportTags,
   createTag,
@@ -211,6 +224,7 @@ import {
   fetchTagStats,
   fetchTagSuggestions,
   fetchTags,
+  toggleTagFavorite,
   updateTag
 } from '@/api/tag'
 import { fetchTagCategories } from '@/api/setting'
@@ -250,6 +264,7 @@ const page = ref(1)
 const size = ref(20)
 const keyword = ref('')
 const category = ref('')
+const onlyFavorite = ref(false)
 const sortField = ref('')
 const sortOrder = ref('')
 const stats = reactive({ total: 0, categories: {} })
@@ -296,6 +311,7 @@ async function load() {
       category: category.value,
       sort: sortField.value,
       order: sortOrder.value,
+      favorite: onlyFavorite.value ? true : '',
       page: page.value,
       size: size.value
     })
@@ -328,6 +344,18 @@ function onSortChange({ prop, order }) {
   sortOrder.value = order === 'ascending' ? 'asc' : order === 'descending' ? 'desc' : ''
   page.value = 1
   load()
+}
+
+async function onToggleFavorite(row) {
+  try {
+    const data = await toggleTagFavorite(row.id)
+    row.favorite = data.favorite
+    if (onlyFavorite.value && !data.favorite) {
+      await Promise.all([load(), loadStats()])
+    }
+  } catch (e) {
+    ElMessage.error(e.message)
+  }
 }
 
 async function querySuggestions(queryString, callback) {
