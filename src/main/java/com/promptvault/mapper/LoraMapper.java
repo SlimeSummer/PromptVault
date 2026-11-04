@@ -13,6 +13,9 @@ public interface LoraMapper {
 
     Lora findById(@Param("id") Long id);
 
+    /** 按名称补全，返回名称列表 */
+    List<String> suggest(@Param("keyword") String keyword, @Param("limit") int limit);
+
     long countByName(@Param("name") String name,
                      @Param("excludeId") Long excludeId);
 

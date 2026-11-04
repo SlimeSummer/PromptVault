@@ -80,6 +80,72 @@
       <template #header>
         <div class="panel-head">
           <div>
+            <h2>词组分类</h2>
+            <p>词组库里的“类别”下拉由这里驱动。显示名称可改；标识用于数据存储，创建后不可修改。</p>
+          </div>
+          <el-button size="small" :icon="Plus" @click="addGroupCategory">新增分类</el-button>
+        </div>
+      </template>
+
+      <el-table :data="groupCategories" size="small" class="inner-table">
+        <el-table-column label="显示名称" min-width="160">
+          <template #default="{ row }">
+            <el-input v-model="row.label" size="small" maxlength="20" placeholder="如 场景" />
+          </template>
+        </el-table-column>
+
+        <el-table-column label="标识" min-width="150">
+          <template #default="{ row }">
+            <el-input
+              v-model="row.value"
+              size="small"
+              :disabled="!row.isNew"
+              placeholder="字母/数字/下划线"
+            />
+          </template>
+        </el-table-column>
+
+        <el-table-column label="词组数" width="90" align="center">
+          <template #default="{ row }">
+            <span class="muted">{{ groupCountOf(row.value) }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="操作" width="180" align="right">
+          <template #default="{ row, $index }">
+            <el-button link :disabled="$index === 0" @click="moveGroupCategory($index, -1)">上移</el-button>
+            <el-button
+              link
+              :disabled="$index === groupCategories.length - 1"
+              @click="moveGroupCategory($index, 1)"
+            >
+              下移
+            </el-button>
+            <el-button
+              link
+              type="danger"
+              :disabled="groupCountOf(row.value) > 0"
+              @click="removeGroupCategory($index)"
+            >
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+
+        <template #empty>
+          <el-empty description="至少保留一个分类" :image-size="60" />
+        </template>
+      </el-table>
+
+      <p class="tip">
+        被词组使用的分类不能删除（删除按钮会置灰）；需要先到词组库把这些词组改到其他类别。
+      </p>
+    </el-card>
+
+    <el-card v-loading="loading" class="panel" shadow="never">
+      <template #header>
+        <div class="panel-head">
+          <div>
             <h2>LoRA 底模</h2>
             <p>LoRA 档案里的“底模”下拉选项。移除某个底模不会修改已保存的 LoRA 档案。</p>
           </div>
@@ -119,17 +185,24 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { fetchTagStats } from '@/api/tag'
+import { fetchGroups } from '@/api/group'
 import { fetchSettings, saveSettings } from '@/api/setting'
 
 const loading = ref(false)
 const saving = ref(false)
 const categories = ref([])
+const groupCategories = ref([])
 const baseModels = ref([])
 const newBaseModel = ref('')
 const counts = ref({})
+const groupCounts = ref({})
 
 function countOf(value) {
   return counts.value[value] || 0
+}
+
+function groupCountOf(value) {
+  return groupCounts.value[value] || 0
 }
 
 async function load() {
@@ -141,9 +214,20 @@ async function load() {
       label: item.label,
       isNew: false
     }))
+    groupCategories.value = (data.groupCategories || []).map((item) => ({
+      value: item.value,
+      label: item.label,
+      isNew: false
+    }))
     baseModels.value = [...(data.loraBaseModels || [])]
-    const stats = await fetchTagStats()
+    const [stats, groups] = await Promise.all([fetchTagStats(), fetchGroups()])
     counts.value = stats.categories || {}
+    const nextGroupCounts = {}
+    for (const group of groups || []) {
+      const key = group.category || 'other'
+      nextGroupCounts[key] = (nextGroupCounts[key] || 0) + 1
+    }
+    groupCounts.value = nextGroupCounts
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
@@ -174,6 +258,29 @@ function removeCategory(index) {
   categories.value.splice(index, 1)
 }
 
+function addGroupCategory() {
+  groupCategories.value.push({ value: '', label: '', isNew: true })
+}
+
+function moveGroupCategory(index, delta) {
+  const target = index + delta
+  if (target < 0 || target >= groupCategories.value.length) {
+    return
+  }
+  const temp = groupCategories.value[index]
+  groupCategories.value[index] = groupCategories.value[target]
+  groupCategories.value[target] = temp
+}
+
+function removeGroupCategory(index) {
+  const row = groupCategories.value[index]
+  if (groupCountOf(row.value) > 0) {
+    ElMessage.warning(`分类「${row.label || row.value}」下还有 ${groupCountOf(row.value)} 个词组，请先移动这些词组`)
+    return
+  }
+  groupCategories.value.splice(index, 1)
+}
+
 function addBaseModel() {
   const value = newBaseModel.value.trim()
   if (!value) {
@@ -192,28 +299,39 @@ function removeBaseModel(index) {
   baseModels.value.splice(index, 1)
 }
 
-function validate() {
-  if (!categories.value.length) {
-    return '至少保留一个分类'
+function validateCategoryList(list, entityName) {
+  if (!list.length) {
+    return `至少保留一个${entityName}分类`
   }
-
   const values = new Set()
-  for (const row of categories.value) {
+  for (const row of list) {
     const value = (row.value || '').trim()
     const label = (row.label || '').trim()
     if (!label) {
-      return '分类显示名称不能为空'
+      return `${entityName}分类显示名称不能为空`
     }
     if (label.length > 20) {
-      return '分类显示名称最多 20 个字符'
+      return `${entityName}分类显示名称最多 20 个字符`
     }
     if (!/^[a-zA-Z0-9_-]{1,40}$/.test(value)) {
-      return `分类标识只能用字母、数字、下划线或短横线：${value || '（空）'}`
+      return `${entityName}分类标识只能用字母、数字、下划线或短横线：${value || '（空）'}`
     }
     if (values.has(value)) {
-      return `分类标识重复：${value}`
+      return `${entityName}分类标识重复：${value}`
     }
     values.add(value)
+  }
+  return ''
+}
+
+function validate() {
+  const tagMessage = validateCategoryList(categories.value, '词条')
+  if (tagMessage) {
+    return tagMessage
+  }
+  const groupMessage = validateCategoryList(groupCategories.value, '词组')
+  if (groupMessage) {
+    return groupMessage
   }
 
   if (!baseModels.value.length) {
@@ -239,9 +357,18 @@ async function save() {
         value: row.value.trim(),
         label: row.label.trim()
       })),
+      groupCategories: groupCategories.value.map((row) => ({
+        value: row.value.trim(),
+        label: row.label.trim()
+      })),
       loraBaseModels: baseModels.value
     })
     categories.value = data.tagCategories.map((item) => ({
+      value: item.value,
+      label: item.label,
+      isNew: false
+    }))
+    groupCategories.value = data.groupCategories.map((item) => ({
       value: item.value,
       label: item.label,
       isNew: false

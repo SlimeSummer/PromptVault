@@ -37,6 +37,13 @@ public class LoraController {
         return ApiResponse.ok(loraService.list(keyword, sort, order));
     }
 
+    @GetMapping("/suggest")
+    public ApiResponse<List<String>> suggest(
+            @RequestParam(name = "keyword", required = false, defaultValue = "") String keyword,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        return ApiResponse.ok(loraService.suggest(keyword, limit));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<Lora> get(@PathVariable Long id) {
         return ApiResponse.ok(loraService.get(id));

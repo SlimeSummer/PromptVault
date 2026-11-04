@@ -1,13 +1,19 @@
 import { get, post, put, del } from './http'
 
-export function fetchGroups(scope = '', loraId = null, keyword = '') {
+export function fetchGroups(scope = '', loraId = null, keyword = '', category = '') {
   const query = new URLSearchParams()
   if (scope) query.append('scope', scope)
   if (loraId != null) query.append('loraId', loraId)
   if (keyword) query.append('keyword', keyword)
+  if (category) query.append('category', category)
   const qs = query.toString()
   return get(`/api/groups${qs ? '?' + qs : ''}`)
 }
+
+export const fetchGroupCategories = () => get('/api/groups/categories')
+
+export const fetchGroupSuggestions = (keyword) =>
+  get(`/api/groups/suggest?keyword=${encodeURIComponent(keyword)}&limit=10`)
 
 export const fetchGroupDetail = (id) => get(`/api/groups/${id}`)
 
@@ -29,3 +35,6 @@ export const deleteGroupItem = (id, itemId) => del(`/api/groups/${id}/items/${it
 
 export const reorderGroupItems = (id, itemIds) =>
   put(`/api/groups/${id}/items/order`, { itemIds })
+
+export const importGroupItems = (id, sourceGroupId) =>
+  post(`/api/groups/${id}/items/import`, { sourceGroupId })

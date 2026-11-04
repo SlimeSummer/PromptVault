@@ -34,6 +34,12 @@ public class LoraService {
         return loraMapper.list(kw, safeSort, safeOrder);
     }
 
+    public List<String> suggest(String keyword, int limit) {
+        String kw = keyword == null ? "" : keyword.trim();
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        return loraMapper.suggest(kw, safeLimit);
+    }
+
     public Lora get(Long id) {
         Lora lora = loraMapper.findById(id);
         if (lora == null) {

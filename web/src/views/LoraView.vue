@@ -13,19 +13,13 @@
     </header>
 
     <section class="toolbar">
-      <el-input
+      <SearchBox
         v-model="keyword"
+        :suggest="fetchLoraSuggestions"
+        width="320px"
         placeholder="搜索名称 / 触发词 / 备注，回车确认"
-        clearable
-        style="width: 320px"
-        @keyup.enter="loadLoras"
-        @clear="loadLoras"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
-      <el-button @click="loadLoras">搜索</el-button>
+        @search="loadLoras"
+      />
       <span class="total">共 {{ loras.length }} 个 LoRA</span>
     </section>
 
@@ -297,7 +291,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { fetchTags } from '@/api/tag'
 import { fetchSettings } from '@/api/setting'
 import {
@@ -310,12 +304,14 @@ import {
   duplicatePreset,
   fetchLoraPresets,
   fetchLoras,
+  fetchLoraSuggestions,
   fetchPresetDetail,
   reorderPresetItems,
   updateLora,
   updatePreset,
   updatePresetItem
 } from '@/api/lora'
+import SearchBox from '@/components/SearchBox.vue'
 
 const DEFAULT_BASE_MODELS = ['sd15', 'sdxl', 'pony', 'illustrious', 'noobai', 'other']
 const baseModels = ref([...DEFAULT_BASE_MODELS])

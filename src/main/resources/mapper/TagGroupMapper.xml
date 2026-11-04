@@ -20,11 +20,34 @@
             <if test="scope == 'global'">
                 AND g.scope = 'global'
             </if>
+            <if test="category != null and category != ''">
+                AND g.category = #{category}
+            </if>
             <if test="keyword != null and keyword != ''">
                 AND g.name LIKE '%' || #{keyword} || '%'
             </if>
         </where>
         ORDER BY g.sort_order, g.id DESC
+    </select>
+
+    <select id="suggest" resultType="string">
+        SELECT g.name
+        FROM tag_group g
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND g.name LIKE '%' || #{keyword} || '%'
+            </if>
+        </where>
+        ORDER BY
+            CASE WHEN g.name LIKE #{keyword} || '%' THEN 0 ELSE 1 END,
+            g.name
+        LIMIT #{limit}
+    </select>
+
+    <select id="countByCategory" resultType="map">
+        SELECT category, COUNT(*) AS cnt
+        FROM tag_group
+        GROUP BY category
     </select>
 
     <select id="findById" resultType="com.promptvault.entity.TagGroup">
@@ -56,8 +79,8 @@
 
     <insert id="insert" parameterType="com.promptvault.entity.TagGroup"
             useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO tag_group (name, kind, scope, lora_id, note, sort_order)
-        VALUES (#{name}, #{kind}, #{scope}, #{loraId}, #{note}, #{sortOrder})
+        INSERT INTO tag_group (name, kind, scope, lora_id, category, note, sort_order)
+        VALUES (#{name}, #{kind}, #{scope}, #{loraId}, #{category}, #{note}, #{sortOrder})
     </insert>
 
     <update id="update" parameterType="com.promptvault.entity.TagGroup">
@@ -66,6 +89,7 @@
             kind = #{kind},
             scope = #{scope},
             lora_id = #{loraId},
+            category = #{category},
             note = #{note},
             sort_order = #{sortOrder},
             updated_at = datetime('now', 'localtime')

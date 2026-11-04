@@ -1,9 +1,12 @@
 package com.promptvault.web;
 
 import com.promptvault.common.ApiResponse;
+import com.promptvault.dto.CategoryOption;
+import com.promptvault.dto.GroupImportRequest;
 import com.promptvault.dto.GroupItemOrderRequest;
 import com.promptvault.entity.TagGroup;
 import com.promptvault.entity.TagGroupItem;
+import com.promptvault.service.SettingService;
 import com.promptvault.service.TagGroupService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,17 +26,32 @@ import java.util.Map;
 public class TagGroupController {
 
     private final TagGroupService groupService;
+    private final SettingService settingService;
 
-    public TagGroupController(TagGroupService groupService) {
+    public TagGroupController(TagGroupService groupService, SettingService settingService) {
         this.groupService = groupService;
+        this.settingService = settingService;
     }
 
     @GetMapping
     public ApiResponse<List<TagGroup>> list(
             @RequestParam(required = false) String scope,
             @RequestParam(required = false) Long loraId,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(groupService.list(scope, loraId, keyword));
+        return ApiResponse.ok(groupService.list(scope, loraId, keyword, category));
+    }
+
+    @GetMapping("/categories")
+    public ApiResponse<List<CategoryOption>> categories() {
+        return ApiResponse.ok(settingService.getGroupCategories());
+    }
+
+    @GetMapping("/suggest")
+    public ApiResponse<List<String>> suggest(
+            @RequestParam(name = "keyword", required = false, defaultValue = "") String keyword,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        return ApiResponse.ok(groupService.suggest(keyword, limit));
     }
 
     @GetMapping("/{id}")
@@ -86,5 +104,14 @@ public class TagGroupController {
     public ApiResponse<Void> reorder(@PathVariable Long id, @RequestBody GroupItemOrderRequest request) {
         groupService.reorder(id, request);
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/{id}/items/import")
+    public ApiResponse<Map<String, Object>> importItems(@PathVariable Long id,
+                                                        @RequestBody GroupImportRequest request) {
+        if (request == null || request.getSourceGroupId() == null) {
+            throw new com.promptvault.common.BizException("请选择要导入的词组");
+        }
+        return ApiResponse.ok(groupService.importItems(id, request.getSourceGroupId()));
     }
 }

@@ -11,20 +11,30 @@
     </header>
 
     <section class="toolbar">
-      <el-input
+      <SearchBox
         v-model="keyword"
-        placeholder="按名称搜索"
-        clearable
-        style="width: 260px"
-        @keyup.enter="load"
-        @clear="load"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+        :suggest="fetchGroupSuggestions"
+        width="300px"
+        placeholder="按名称搜索，回车确认"
+        @search="load"
+      />
 
       <el-segmented v-model="scopeSeg" :options="scopeOptions" @change="load" />
+
+      <el-select
+        v-model="categoryFilter"
+        placeholder="全部类别"
+        clearable
+        style="width: 140px"
+        @change="load"
+      >
+        <el-option
+          v-for="item in groupCategories"
+          :key="item.value"
+          :value="item.value"
+          :label="item.label"
+        />
+      </el-select>
 
       <el-select
         v-if="scopeSeg === 'lora'"
@@ -66,6 +76,12 @@
         </template>
       </el-table-column>
 
+      <el-table-column label="类别" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag size="small" effect="plain" type="info">{{ categoryLabel(row.category) }}</el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="note" label="备注" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="muted">{{ row.note || '—' }}</span>
@@ -102,6 +118,16 @@
             <el-radio-button label="normal">普通词组</el-radio-button>
             <el-radio-button label="global_negative">全局负面</el-radio-button>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="类别" prop="category">
+          <el-select v-model="editForm.category" style="width: 100%">
+            <el-option
+              v-for="item in groupCategories"
+              :key="item.value"
+              :value="item.value"
+              :label="item.label"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="范围" prop="scope">
           <el-radio-group v-model="editForm.scope" @change="onScopeChange">
@@ -146,7 +172,9 @@
         <el-tag size="small" :type="detailGroup.scope === 'global' ? 'info' : 'success'" effect="light">
           {{ detailGroup.scope === 'global' ? '全局' : (detailGroup.loraName || 'LoRA') }}
         </el-tag>
+        <el-tag size="small" type="info" effect="plain">{{ categoryLabel(detailGroup.category) }}</el-tag>
         <span v-if="detailGroup.note" class="muted">{{ detailGroup.note }}</span>
+        <el-button class="import-btn" :icon="Files" @click="openImport">从词组库添加</el-button>
       </div>
 
       <el-tabs v-model="detailPolarity" class="detail-tabs">
@@ -223,27 +251,72 @@
         <el-button :icon="DocumentCopy" @click="onCopyPreview">复制拼接结果</el-button>
       </div>
     </el-drawer>
+
+    <!-- 从词组库导入 -->
+    <el-dialog v-model="importVisible" title="从词组库添加" width="560px" append-to-body>
+      <p class="muted import-tip">
+        将所选词组的条目导入「{{ detailGroup?.name }}」，已存在的条目会自动跳过。
+      </p>
+      <SearchBox
+        v-model="importKeyword"
+        :suggest="fetchGroupSuggestions"
+        placeholder="搜索词组名称"
+        @search="loadImportGroups"
+      />
+      <el-table
+        v-loading="importLoading"
+        :data="importGroups"
+        border
+        size="small"
+        height="320"
+        highlight-current-row
+        class="import-table"
+        @current-change="(row) => (importSourceId = row ? row.id : null)"
+      >
+        <el-table-column prop="name" label="词组" min-width="200" />
+        <el-table-column label="类别" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" type="info" effect="plain">{{ categoryLabel(row.category) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="itemCount" label="条目" width="70" align="center">
+          <template #default="{ row }">{{ row.itemCount || 0 }}</template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="没有可导入的词组" :image-size="60" />
+        </template>
+      </el-table>
+      <template #footer>
+        <el-button @click="importVisible = false">取消</el-button>
+        <el-button type="primary" :loading="importSaving" :disabled="!importSourceId" @click="doImport">
+          导入
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentCopy, Plus, Search } from '@element-plus/icons-vue'
+import { DocumentCopy, Files, Plus } from '@element-plus/icons-vue'
 import {
   addGroupItem,
   createGroup,
   deleteGroup,
   deleteGroupItem,
   duplicateGroup,
+  fetchGroupCategories,
   fetchGroupDetail,
   fetchGroups,
-  reorderGroupItems,
+  fetchGroupSuggestions,
+  importGroupItems,
   updateGroup,
   updateGroupItem
 } from '@/api/group'
 import { fetchLoras } from '@/api/lora'
 import AddTagRow from '@/components/AddTagRow.vue'
+import SearchBox from '@/components/SearchBox.vue'
 
 const scopeOptions = [
   { label: '全部', value: '' },
@@ -258,14 +331,41 @@ const keyword = ref('')
 const loading = ref(false)
 const groups = ref([])
 const loras = ref([])
-const categories = ref([])
+const groupCategories = ref([])
+const categoryFilter = ref('')
+
+const FALLBACK_CATEGORIES = [
+  { value: 'character', label: '人物' },
+  { value: 'outfit', label: '穿搭' },
+  { value: 'scene', label: '场景' },
+  { value: 'event', label: '事件' },
+  { value: 'quality', label: '质量' },
+  { value: 'style', label: '风格' },
+  { value: 'action', label: '动作' },
+  { value: 'expression', label: '表情' },
+  { value: 'lighting', label: '光影' },
+  { value: 'other', label: '其他' }
+]
+
+function categoryLabel(value) {
+  const hit = groupCategories.value.find((c) => c.value === value)
+  return hit ? hit.label : (value || '其他')
+}
 
 // --- 编辑抽屉 ---
 const editVisible = ref(false)
 const editMode = ref('create')
 const saving = ref(false)
 const editFormRef = ref()
-const editForm = reactive({ id: null, name: '', kind: 'normal', scope: 'global', loraId: null, note: '' })
+const editForm = reactive({
+  id: null,
+  name: '',
+  kind: 'normal',
+  category: 'other',
+  scope: 'global',
+  loraId: null,
+  note: ''
+})
 const editRules = {
   name: [{ required: true, message: '请输入词组名称', trigger: 'blur' }],
   loraId: [{ required: true, message: '请选择 LoRA', trigger: 'change' }]
@@ -277,6 +377,14 @@ const detailGroup = ref(null)
 const detailPolarity = ref('pos')
 const detailItems = ref([])
 
+// --- 从词组库导入 ---
+const importVisible = ref(false)
+const importLoading = ref(false)
+const importSaving = ref(false)
+const importGroups = ref([])
+const importKeyword = ref('')
+const importSourceId = ref(null)
+
 const posItems = computed(() => detailItems.value.filter((i) => i.polarity === 'pos'))
 const negItems = computed(() => detailItems.value.filter((i) => i.polarity === 'neg'))
 const posTagIds = computed(() => posItems.value.map((i) => i.tagId))
@@ -286,11 +394,27 @@ async function load() {
   loading.value = true
   try {
     const scope = scopeSeg.value || null
-    groups.value = await fetchGroups(scope, scope === 'lora' ? loraId.value : null, keyword.value)
+    groups.value = await fetchGroups(
+      scope,
+      scope === 'lora' ? loraId.value : null,
+      keyword.value,
+      categoryFilter.value
+    )
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadGroupCategories() {
+  try {
+    groupCategories.value = await fetchGroupCategories()
+  } catch (e) {
+    groupCategories.value = FALLBACK_CATEGORIES
+  }
+  if (!groupCategories.value || groupCategories.value.length === 0) {
+    groupCategories.value = FALLBACK_CATEGORIES
   }
 }
 
@@ -304,7 +428,15 @@ async function loadLoras() {
 
 function openCreate() {
   editMode.value = 'create'
-  Object.assign(editForm, { id: null, name: '', kind: 'normal', scope: 'global', loraId: null, note: '' })
+  Object.assign(editForm, {
+    id: null,
+    name: '',
+    kind: 'normal',
+    category: 'other',
+    scope: 'global',
+    loraId: null,
+    note: ''
+  })
   editVisible.value = true
 }
 
@@ -314,6 +446,7 @@ function openEdit(row) {
     id: row.id,
     name: row.name,
     kind: row.kind || 'normal',
+    category: row.category || 'other',
     scope: row.scope || 'global',
     loraId: row.loraId || null,
     note: row.note || ''
@@ -344,6 +477,7 @@ async function submitEdit() {
       await updateGroup(editForm.id, {
         name: editForm.name,
         kind: editForm.kind,
+        category: editForm.category,
         scope: editForm.scope,
         loraId: editForm.scope === 'lora' ? editForm.loraId : null,
         note: editForm.note
@@ -469,8 +603,50 @@ function formatPrompt(prompt, weight) {
   return `(${prompt}:${weight.toFixed(1)})`
 }
 
+async function openImport() {
+  importKeyword.value = ''
+  importSourceId.value = null
+  importGroups.value = []
+  importVisible.value = true
+  await loadImportGroups()
+}
+
+async function loadImportGroups() {
+  importLoading.value = true
+  try {
+    const data = await fetchGroups(null, null, importKeyword.value)
+    importGroups.value = data.filter((g) => g.id !== detailGroup.value?.id)
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    importLoading.value = false
+  }
+}
+
+async function doImport() {
+  if (!importSourceId.value) {
+    ElMessage.warning('请选择要导入的词组')
+    return
+  }
+  importSaving.value = true
+  try {
+    const result = await importGroupItems(detailGroup.value.id, importSourceId.value)
+    ElMessage.success(
+      `已从「${result.sourceName}」导入 ${result.added} 条` +
+        (result.skipped > 0 ? `，跳过 ${result.skipped} 条重复` : '')
+    )
+    importVisible.value = false
+    await loadDetail(detailGroup.value.id)
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message)
+  } finally {
+    importSaving.value = false
+  }
+}
+
 onMounted(async () => {
-  await Promise.all([load(), loadLoras()])
+  await Promise.all([load(), loadLoras(), loadGroupCategories()])
 })
 </script>
 
@@ -526,6 +702,19 @@ onMounted(async () => {
   gap: 10px;
   margin-bottom: 16px;
   align-items: center;
+}
+
+.import-btn {
+  margin-left: auto;
+}
+
+.import-tip {
+  margin: 0 0 10px;
+}
+
+.import-table {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .detail-tabs {

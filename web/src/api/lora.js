@@ -14,6 +14,9 @@ export function fetchLoras(keyword = '', sort = '', order = '') {
 
 export const fetchLora = (id) => get(`/api/loras/${id}`)
 
+export const fetchLoraSuggestions = (keyword) =>
+  get(`/api/loras/suggest?keyword=${encodeURIComponent(keyword)}&limit=10`)
+
 export const createLora = (data) => post('/api/loras', data)
 
 export const updateLora = (id, data) => put(`/api/loras/${id}`, data)

@@ -28,19 +28,23 @@ public class TagGroupService {
     private final TagGroupItemMapper itemMapper;
     private final LoraMapper loraMapper;
     private final TagMapper tagMapper;
+    private final SettingService settingService;
 
     public TagGroupService(TagGroupMapper groupMapper,
                            TagGroupItemMapper itemMapper,
                            LoraMapper loraMapper,
-                           TagMapper tagMapper) {
+                           TagMapper tagMapper,
+                           SettingService settingService) {
         this.groupMapper = groupMapper;
         this.itemMapper = itemMapper;
         this.loraMapper = loraMapper;
         this.tagMapper = tagMapper;
+        this.settingService = settingService;
     }
 
-    public List<TagGroup> list(String scope, Long loraId, String keyword) {
+    public List<TagGroup> list(String scope, Long loraId, String keyword, String category) {
         String kw = keyword == null ? null : keyword.trim();
+        String cat = category == null || category.isBlank() ? null : category.trim();
         String safeScope = null;
         if ("lora".equals(scope)) {
             if (loraId == null) {
@@ -51,7 +55,13 @@ public class TagGroupService {
         } else if ("global".equals(scope)) {
             safeScope = "global";
         }
-        return groupMapper.list(safeScope, loraId, kw);
+        return groupMapper.list(safeScope, loraId, cat, kw);
+    }
+
+    public List<String> suggest(String keyword, int limit) {
+        String kw = keyword == null ? "" : keyword.trim();
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        return groupMapper.suggest(kw, safeLimit);
     }
 
     public Map<String, Object> detail(Long id) {
@@ -117,6 +127,14 @@ public class TagGroupService {
             requireLora(loraId);
         }
         target.setLoraId(loraId);
+
+        String category = group.getCategory() == null || group.getCategory().isBlank()
+                ? existing.getCategory()
+                : group.getCategory().trim();
+        if (!settingService.hasGroupCategory(category)) {
+            throw new BizException("未知词组分类：" + category);
+        }
+        target.setCategory(category);
         target.setNote(blankToNull(group.getNote()));
 
         // 范围 / 归属变化时重新排到新桶的末尾，避免与已有 sort_order 冲突
@@ -149,6 +167,7 @@ public class TagGroupService {
         copy.setKind(source.getKind());
         copy.setScope(source.getScope());
         copy.setLoraId(source.getLoraId());
+        copy.setCategory(source.getCategory());
         copy.setNote(source.getNote());
         copy.setSortOrder(groupMapper.maxSortOrder(source.getScope(), source.getLoraId()) + 1);
         groupMapper.insert(copy);
@@ -236,6 +255,45 @@ public class TagGroupService {
         }
     }
 
+    /**
+     * 从另一个词组整块导入条目：保留原正负向与权重，已存在的（同 tag + 同 polarity）跳过。
+     */
+    @Transactional
+    public Map<String, Object> importItems(Long targetId, Long sourceId) {
+        requireGroup(targetId);
+        TagGroup source = requireGroup(sourceId);
+        if (targetId.equals(sourceId)) {
+            throw new BizException("不能从自己导入");
+        }
+
+        int added = 0;
+        int skipped = 0;
+        for (TagGroupItem src : itemMapper.listByGroup(sourceId)) {
+            if (src.getTagId() == null) {
+                skipped++;
+                continue;
+            }
+            if (itemMapper.countDuplicate(targetId, src.getTagId(), src.getPolarity()) > 0) {
+                skipped++;
+                continue;
+            }
+            TagGroupItem copy = new TagGroupItem();
+            copy.setGroupId(targetId);
+            copy.setTagId(src.getTagId());
+            copy.setPolarity(src.getPolarity());
+            copy.setWeight(src.getWeight());
+            copy.setSortOrder(itemMapper.maxSortOrder(targetId, src.getPolarity()) + 1);
+            itemMapper.insert(copy);
+            added++;
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("sourceName", source.getName());
+        result.put("added", added);
+        result.put("skipped", skipped);
+        return result;
+    }
+
     // --- 规范化 / 校验 ---
 
     private void normalize(TagGroup group) {
@@ -256,6 +314,13 @@ public class TagGroupService {
             throw new BizException("未知 scope：" + scope);
         }
         group.setScope(scope);
+        String category = group.getCategory() == null || group.getCategory().isBlank()
+                ? "other"
+                : group.getCategory().trim();
+        if (!settingService.hasGroupCategory(category)) {
+            throw new BizException("未知词组分类：" + category);
+        }
+        group.setCategory(category);
         group.setNote(blankToNull(group.getNote()));
     }
 

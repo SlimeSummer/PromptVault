@@ -13,6 +13,8 @@ public class TagGroup {
     /** global / lora */
     private String scope;
     private Long loraId;
+    /** 词组分类，取值由 setting.group.categories 驱动 */
+    private String category;
     private String note;
     private Integer sortOrder;
     private String createdAt;
@@ -68,6 +70,14 @@ public class TagGroup {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public Integer getSortOrder() {

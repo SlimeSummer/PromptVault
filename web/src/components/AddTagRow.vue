@@ -5,19 +5,13 @@
 
     <el-dialog v-model="visible" title="从词库选择" width="640px" append-to-body>
       <div class="search">
-        <el-input
+        <SearchBox
           v-model="keyword"
+          :suggest="suggestTags"
+          width="440px"
           placeholder="按英文 / 中文搜索，回车确认"
-          clearable
-          style="width: 340px"
-          @keyup.enter="onSearch"
-          @clear="onSearch"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-button :icon="Search" @click="onSearch">搜索</el-button>
+          @search="onSearch"
+        />
       </div>
 
       <el-table v-loading="loading" :data="rows" border size="small" max-height="360" stripe>
@@ -60,8 +54,9 @@
 <script setup>
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, Search } from '@element-plus/icons-vue'
-import { fetchTags } from '@/api/tag'
+import { Plus } from '@element-plus/icons-vue'
+import { fetchTagSuggestions, fetchTags } from '@/api/tag'
+import SearchBox from '@/components/SearchBox.vue'
 
 const props = defineProps({
   polarity: { type: String, required: true },
@@ -77,6 +72,11 @@ const total = ref(0)
 const page = ref(1)
 const size = 20
 const justAdded = ref([])
+
+async function suggestTags(keyword) {
+  const list = await fetchTagSuggestions(keyword, 10)
+  return (list || []).map((tag) => ({ value: tag.prompt, sub: tag.nameZh || '' }))
+}
 
 function isAdded(tagId) {
   return props.existingTagIds.includes(tagId) || justAdded.value.includes(tagId)

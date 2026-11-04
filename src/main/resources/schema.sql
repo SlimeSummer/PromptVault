@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tag_group (
     kind       TEXT    NOT NULL DEFAULT 'normal',  -- normal / global_negative
     scope      TEXT    NOT NULL DEFAULT 'global',  -- global / lora
     lora_id    INTEGER,
+    category   TEXT    NOT NULL DEFAULT 'other',   -- 词组分类，取值由 setting.group.categories 驱动
     note       TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS tag_group (
 );
 
 CREATE INDEX IF NOT EXISTS idx_group_scope ON tag_group (scope, lora_id);
+-- 注意：category 列在旧库上由 SchemaUpgrade 补列后再建索引，这里不能提前建
 
 CREATE TABLE IF NOT EXISTS tag_group_item (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

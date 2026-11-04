@@ -12,7 +12,10 @@
     </select>
 
     <select id="findById" resultType="com.promptvault.entity.TagGroupItem">
-        SELECT * FROM tag_group_item WHERE id = #{id}
+        SELECT i.*, t.prompt, t.name_zh AS nameZh, t.category
+        FROM tag_group_item i
+        LEFT JOIN tag t ON t.id = i.tag_id
+        WHERE i.id = #{id}
     </select>
 
     <select id="countDuplicate" resultType="long">

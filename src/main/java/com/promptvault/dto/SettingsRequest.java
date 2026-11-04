@@ -8,6 +8,7 @@ import java.util.List;
 public class SettingsRequest {
 
     private List<CategoryOption> tagCategories;
+    private List<CategoryOption> groupCategories;
     private List<String> loraBaseModels;
 
     public List<CategoryOption> getTagCategories() {
@@ -16,6 +17,14 @@ public class SettingsRequest {
 
     public void setTagCategories(List<CategoryOption> tagCategories) {
         this.tagCategories = tagCategories;
+    }
+
+    public List<CategoryOption> getGroupCategories() {
+        return groupCategories;
+    }
+
+    public void setGroupCategories(List<CategoryOption> groupCategories) {
+        this.groupCategories = groupCategories;
     }
 
     public List<String> getLoraBaseModels() {

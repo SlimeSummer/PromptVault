@@ -69,4 +69,17 @@
     <delete id="delete">
         DELETE FROM lora WHERE id = #{id}
     </delete>
+    <select id="suggest" resultType="string">
+        SELECT name FROM lora
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND name LIKE '%' || #{keyword} || '%'
+            </if>
+        </where>
+        ORDER BY
+            CASE WHEN name LIKE #{keyword} || '%' THEN 0 ELSE 1 END,
+            name
+        LIMIT #{limit}
+    </select>
+
 </mapper>
