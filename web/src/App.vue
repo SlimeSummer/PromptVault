@@ -18,11 +18,10 @@
           <el-icon><Postcard /></el-icon>
           <span>LoRA 档案</span>
         </router-link>
-        <div class="menu-item locked">
+        <router-link to="/groups" class="menu-item" active-class="active">
           <el-icon><Files /></el-icon>
           <span>词组库</span>
-          <em>阶段 3</em>
-        </div>
+        </router-link>
         <div class="menu-item locked">
           <el-icon><EditPen /></el-icon>
           <span>编辑区</span>

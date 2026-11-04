@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.TagGroupItemMapper">
+
+    <select id="listByGroup" resultType="com.promptvault.entity.TagGroupItem">
+        SELECT i.*, t.prompt, t.name_zh AS nameZh, t.category
+        FROM tag_group_item i
+        LEFT JOIN tag t ON t.id = i.tag_id
+        WHERE i.group_id = #{groupId}
+        ORDER BY i.sort_order, i.id
+    </select>
+
+    <select id="findById" resultType="com.promptvault.entity.TagGroupItem">
+        SELECT * FROM tag_group_item WHERE id = #{id}
+    </select>
+
+    <select id="countDuplicate" resultType="long">
+        SELECT COUNT(*) FROM tag_group_item
+        WHERE group_id = #{groupId} AND tag_id = #{tagId} AND polarity = #{polarity}
+    </select>
+
+    <select id="maxSortOrder" resultType="int">
+        SELECT COALESCE(MAX(sort_order), 0) FROM tag_group_item
+        WHERE group_id = #{groupId} AND polarity = #{polarity}
+    </select>
+
+    <insert id="insert" parameterType="com.promptvault.entity.TagGroupItem"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO tag_group_item (group_id, tag_id, polarity, weight, sort_order)
+        VALUES (#{groupId}, #{tagId}, #{polarity}, #{weight}, #{sortOrder})
+    </insert>
+
+    <update id="update" parameterType="com.promptvault.entity.TagGroupItem">
+        UPDATE tag_group_item
+        SET polarity = #{polarity}, weight = #{weight}, sort_order = #{sortOrder}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateSort">
+        UPDATE tag_group_item SET sort_order = #{sortOrder} WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM tag_group_item WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByGroup">
+        DELETE FROM tag_group_item WHERE group_id = #{groupId}
+    </delete>
+
+</mapper>
