@@ -6,6 +6,9 @@
         <p class="desc">所有原子提示词都在这里。按分类归档，中英文都能搜。</p>
       </div>
       <div class="head-actions">
+        <el-button type="danger" :disabled="selectedIds.length === 0" @click="onBatchDelete">
+          批量删除（{{ selectedIds.length }}）
+        </el-button>
         <el-button :icon="Upload" @click="openBatch">批量导入</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增词条</el-button>
       </div>
@@ -66,7 +69,10 @@
       border
       class="table"
       @sort-change="onSortChange"
+      @selection-change="onSelectionChange"
     >
+      <el-table-column type="selection" width="45" />
+
       <el-table-column label="收藏" width="70" align="center">
         <template #default="{ row }">
           <el-button link class="star-btn" @click="onToggleFavorite(row)">
@@ -181,8 +187,14 @@
             placeholder="支持逗号、顿号或换行分隔，例如：&#10;(masterpiece:1.2), best quality, blue eyes&#10;long hair, smile"
           />
         </el-form-item>
+        <el-form-item label="自动判断">
+          <el-checkbox
+            v-model="batchAutoCategory"
+            @change="onAutoCategoryToggle"
+          >勾选后忽略下方"归类为"，逐条按关键词规则自动分类</el-checkbox>
+        </el-form-item>
         <el-form-item label="归类为">
-          <el-select v-model="batchCategory" style="width: 100%">
+          <el-select v-model="batchCategory" style="width: 100%" :disabled="batchAutoCategory">
             <el-option
               v-for="item in categories"
               :key="item.value"
@@ -199,11 +211,18 @@
 
       <el-alert
         v-if="batchResult"
-        type="success"
+        :type="batchResult.skipped > 0 ? 'warning' : 'success'"
         :closable="false"
         show-icon
-        :title="`解析 ${batchResult.total} 条：新增 ${batchResult.inserted} 条，跳过 ${batchResult.skipped} 条`"
+        :title="`解析 ${batchResult.total} 条：新增 ${batchResult.inserted} 条，跳过 ${batchResult.skipped} 条${batchResult.autoCategory ? '（自动分类）' : ''}`"
       />
+
+      <div v-if="batchResult && batchResult.byCategory && Object.keys(batchResult.byCategory).length" class="batch-cat-summary">
+        <div v-for="(stat, cat) in batchResult.byCategory" :key="cat" class="cat-row">
+          <el-tag :type="typeOf(cat)" effect="plain" size="small">{{ labelOf(cat) }}</el-tag>
+          <span class="cat-num">新增 {{ stat.inserted }} · 跳过 {{ stat.skipped }}</span>
+        </div>
+      </div>
 
       <template #footer>
         <el-button @click="batchVisible = false">关闭</el-button>
@@ -218,6 +237,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Star, StarFilled, Upload } from '@element-plus/icons-vue'
 import {
+  batchDeleteTags,
   batchImportTags,
   createTag,
   deleteTag,
@@ -259,6 +279,7 @@ const CATEGORY_TYPES = {
 
 const loading = ref(false)
 const tags = ref([])
+const selectedIds = ref([])
 const total = ref(0)
 const page = ref(1)
 const size = ref(20)
@@ -282,6 +303,7 @@ const rules = {
 const batchVisible = ref(false)
 const batchText = ref('')
 const batchCategory = ref('other')
+const batchAutoCategory = ref(false)
 const batchLoading = ref(false)
 const batchResult = ref(null)
 
@@ -436,6 +458,33 @@ function resetForm() {
   formRef.value?.clearValidate()
 }
 
+function onSelectionChange(rows) {
+  selectedIds.value = rows.map((r) => r.id)
+}
+
+async function onBatchDelete() {
+  if (selectedIds.value.length === 0) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${selectedIds.value.length} 条词条吗？此操作不可撤销。`,
+      '批量删除',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch (e) {
+    return
+  }
+  try {
+    const data = await batchDeleteTags(selectedIds.value)
+    ElMessage.success(`已删除 ${data.deleted} 条`)
+    await Promise.all([load(), loadStats()])
+  } catch (e) {
+    // 后端会把被引用的词条拼成错误信息
+    ElMessage.error(e.message)
+  }
+}
+
 async function remove(row) {
   try {
     await ElMessageBox.confirm(`确定删除「${row.prompt}」吗？`, '删除词条', {
@@ -469,8 +518,17 @@ function openBatch() {
   if (!categories.value.some((item) => item.value === batchCategory.value)) {
     batchCategory.value = defaultCategory()
   }
+  batchAutoCategory.value = false
   batchResult.value = null
   batchVisible.value = true
+}
+
+function onAutoCategoryToggle(val) {
+  if (val) {
+    batchCategory.value = ''
+  } else if (!categories.value.some((item) => item.value === batchCategory.value)) {
+    batchCategory.value = defaultCategory()
+  }
 }
 
 async function submitBatch() {
@@ -483,10 +541,10 @@ async function submitBatch() {
   try {
     const data = await batchImportTags({
       text: batchText.value,
-      category: batchCategory.value
+      category: batchAutoCategory.value ? undefined : batchCategory.value,
+      autoCategory: batchAutoCategory.value || undefined
     })
     batchResult.value = data
-    ElMessage.success(`新增 ${data.inserted} 条，跳过 ${data.skipped} 条`)
     await Promise.all([load(), loadStats()])
   } catch (e) {
     ElMessage.error(e.message)
@@ -498,6 +556,7 @@ async function submitBatch() {
 function resetBatch() {
   batchText.value = ''
   batchCategory.value = defaultCategory()
+  batchAutoCategory.value = false
   batchResult.value = null
 }
 
@@ -576,6 +635,25 @@ h1 {
   font-size: 13px;
   color: #3b3f46;
   word-break: break-all;
+}
+
+.batch-cat-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f7f8fa;
+  border-radius: 6px;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.cat-num {
+  font-size: 13px;
+  color: #606266;
 }
 
 .muted {

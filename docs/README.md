@@ -17,7 +17,9 @@ docs/
 │   ├── stage-2.md         # LoRA 档案与预设
 │   ├── stage-2.5a.md      # 设置页：自定义分类与底模
 │   ├── stage-2.5b.md      # 词库交互：搜索补全 / 排序 / 列宽
-│   └── stage-2.5c.md      # 词条收藏
+│   ├── stage-2.5c.md      # 词条收藏
+│   ├── stage-2.5d.md      # 批量导入自动分类（规则版）
+│   └── stage-2.5e.md      # 词条批量删除
 └── adr/
     ├── 0001-local-web-app.md
     ├── 0002-schema-single-shot.md

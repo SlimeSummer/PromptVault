@@ -2,6 +2,7 @@ package com.promptvault.web;
 
 import com.promptvault.common.ApiResponse;
 import com.promptvault.dto.CategoryOption;
+import com.promptvault.dto.IdsRequest;
 import com.promptvault.dto.TagBatchRequest;
 import com.promptvault.entity.Tag;
 import com.promptvault.service.SettingService;
@@ -80,6 +81,12 @@ public class TagController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         tagService.delete(id);
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/batch-delete")
+    public ApiResponse<Map<String, Object>> batchDelete(@RequestBody IdsRequest request) {
+        int deleted = tagService.batchDelete(request.getIds());
+        return ApiResponse.ok(Map.of("deleted", deleted));
     }
 
     @PostMapping("/batch")

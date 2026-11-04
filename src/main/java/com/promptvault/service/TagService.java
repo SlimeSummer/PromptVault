@@ -29,10 +29,12 @@ public class TagService {
 
     private final TagMapper tagMapper;
     private final SettingService settingService;
+    private final TagClassifier classifier;
 
-    public TagService(TagMapper tagMapper, SettingService settingService) {
+    public TagService(TagMapper tagMapper, SettingService settingService, TagClassifier classifier) {
         this.tagMapper = tagMapper;
         this.settingService = settingService;
+        this.classifier = classifier;
     }
 
     public Map<String, Object> page(String keyword, String category, String sort, String order,
@@ -136,14 +138,50 @@ public class TagService {
         tagMapper.delete(id);
     }
 
+    /**
+     * 批量删除。逐条做引用检查；任一被引用则全部回滚（@Transactional）。
+     *
+     * @return 删除条数
+     */
+    @Transactional
+    public int batchDelete(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BizException("未选择任何词条");
+        }
+        int ok = 0;
+        List<String> blocked = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            Tag existing = tagMapper.findById(id);
+            if (existing == null) {
+                continue;
+            }
+            long refs = tagMapper.countReferences(id);
+            if (refs > 0) {
+                blocked.add(existing.getPrompt() + "（被 " + refs + " 处引用）");
+                continue;
+            }
+            tagMapper.deleteFavorite(id);
+            tagMapper.delete(id);
+            ok++;
+        }
+        if (!blocked.isEmpty()) {
+            throw new BizException("以下词条仍被引用，无法删除：" + String.join("；", blocked));
+        }
+        return ok;
+    }
+
     @Transactional
     public Map<String, Object> batchImport(TagBatchRequest request) {
         if (request == null || request.getText() == null || request.getText().isBlank()) {
             throw new BizException("导入内容为空");
         }
-        String category = request.getCategory() == null ? "other" : request.getCategory().trim();
-        if (!settingService.hasCategory(category)) {
-            throw new BizException("未知分类：" + category);
+        boolean autoCategory = Boolean.TRUE.equals(request.getAutoCategory());
+        String category = null;
+        if (!autoCategory) {
+            category = request.getCategory() == null ? "other" : request.getCategory().trim();
+            if (!settingService.hasCategory(category)) {
+                throw new BizException("未知分类：" + category);
+            }
         }
 
         Set<String> candidates = new LinkedHashSet<>();
@@ -154,25 +192,42 @@ public class TagService {
             }
         }
 
+        Map<String, Map<String, Integer>> byCategory = new LinkedHashMap<>();
         int inserted = 0;
         int skipped = 0;
         for (String prompt : candidates) {
+            String targetCategory = autoCategory ? classifier.classify(prompt) : category;
+            if (!settingService.hasCategory(targetCategory)) {
+                targetCategory = "other";
+            }
+
+            Map<String, Integer> stat = byCategory.computeIfAbsent(targetCategory, k -> {
+                Map<String, Integer> m = new LinkedHashMap<>();
+                m.put("inserted", 0);
+                m.put("skipped", 0);
+                return m;
+            });
+
             if (tagMapper.countByPrompt(prompt, null) > 0) {
                 skipped++;
+                stat.merge("skipped", 1, Integer::sum);
                 continue;
             }
             Tag tag = new Tag();
             tag.setPrompt(prompt);
-            tag.setCategory(category);
+            tag.setCategory(targetCategory);
             tag.setLoraId(request.getLoraId());
             tagMapper.insert(tag);
             inserted++;
+            stat.merge("inserted", 1, Integer::sum);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("total", candidates.size());
         result.put("inserted", inserted);
         result.put("skipped", skipped);
+        result.put("autoCategory", autoCategory);
+        result.put("byCategory", byCategory);
         return result;
     }
 
