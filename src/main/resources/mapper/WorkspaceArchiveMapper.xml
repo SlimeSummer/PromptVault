@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.WorkspaceArchiveMapper">
+
+    <select id="list" resultType="com.promptvault.entity.WorkspaceArchive">
+        SELECT id, name, note, source_workspace_id, source_workspace_name, item_count, created_at
+        FROM workspace_archive
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <select id="findById" resultType="com.promptvault.entity.WorkspaceArchive">
+        SELECT *
+        FROM workspace_archive
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.promptvault.entity.WorkspaceArchive"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO workspace_archive
+            (name, note, source_workspace_id, source_workspace_name, item_count, payload)
+        VALUES
+            (#{name}, #{note}, #{sourceWorkspaceId}, #{sourceWorkspaceName}, #{itemCount}, #{payload})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM workspace_archive WHERE id = #{id}
+    </delete>
+
+</mapper>

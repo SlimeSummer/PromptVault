@@ -30,6 +30,19 @@
         ORDER BY g.sort_order, g.id DESC
     </select>
 
+    <select id="listGlobalNegative" resultType="com.promptvault.entity.TagGroup">
+        SELECT <include refid="listCols"/>
+        FROM tag_group g
+        LEFT JOIN lora l ON l.id = g.lora_id
+        WHERE g.kind = 'global_negative' AND g.scope = 'global'
+        ORDER BY g.sort_order, g.id
+    </select>
+
+    <select id="countWorkspaceRefs" resultType="long">
+        SELECT COUNT(*) FROM workspace_item
+        WHERE item_type = 'group' AND ref_id = #{groupId}
+    </select>
+
     <select id="suggest" resultType="string">
         SELECT g.name
         FROM tag_group g

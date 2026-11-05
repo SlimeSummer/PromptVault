@@ -76,6 +76,10 @@ public class PresetService {
     @Transactional
     public void delete(Long id) {
         requirePreset(id);
+        long workspaceCount = presetMapper.countWorkspaceRefs(id);
+        if (workspaceCount > 0) {
+            throw new BizException("该预设被 " + workspaceCount + " 个编辑区使用，请先更换或删除编辑区后再试");
+        }
         itemMapper.deleteByPreset(id);
         presetMapper.delete(id);
     }

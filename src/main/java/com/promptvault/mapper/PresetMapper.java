@@ -13,6 +13,9 @@ public interface PresetMapper {
 
     long countByLora(@Param("loraId") Long loraId);
 
+    /** 被多少个编辑区绑定为基线预设 */
+    long countWorkspaceRefs(@Param("presetId") Long presetId);
+
     int maxSortOrder(@Param("loraId") Long loraId);
 
     int insert(Preset preset);

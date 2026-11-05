@@ -22,7 +22,8 @@ docs/
 │   ├── stage-2.5e.md      # 词条批量删除
 │   ├── stage-3.md         # 词组库
 │   ├── stage-3.5a.md      # 词组库增强（类别 / 导入 / 搜索框）
-│   └── stage-3.5b.md      # 词组库全引用复用模型
+│   ├── stage-3.5b.md      # 词组库全引用复用模型
+│   └── stage-4.md         # 结构化编辑区（动态分区 / 权重 / 导出 / 存档）
 └── adr/
     ├── 0001-local-web-app.md
     ├── 0002-schema-single-shot.md
@@ -31,7 +32,9 @@ docs/
     ├── 0005-settings-driven-categories.md
     ├── 0006-schema-incremental-tables.md
     ├── 0007-unified-search-box.md
-    └── 0008-group-reference-model.md
+    ├── 0008-group-reference-model.md
+    ├── 0009-dynamic-sections-follow-categories.md
+    └── 0010-workspace-archive-snapshot.md
 ```
 
 ## 何时写

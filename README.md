@@ -29,7 +29,7 @@ PromptVault 想把这三件事拆开解决：**存得住、找得到、拼得快
 | **LoRA 档案** | 一个模型的专属档案：来源、底模、触发词、备注 |
 | **预设 Preset** | 某个 LoRA 的「角色基线」：身份 + 穿搭 + 画风锚点，含正向与负向，**故意不含动作/场景/表情** |
 | **词组 Group** | 你的经验组合，如 `cheerleader, pom pom, bow, jumping, arms up`，可整块插入、可解绑、可继续打磨；还能引用其他词组，实时递归合并条目 |
-| **编辑区 Workspace** | 九分区组装台：触发词 / 质量 / 风格 / 穿搭 / 场景 / 动作 / 表情 / 细节 / 负面 |
+| **编辑区 Workspace** | 结构化组装台：正向分区跟随设置页的词条分类（不写死九分区），负向独立成层；支持拖拽排序、权重、整组解绑与存档快照 |
 
 组装逻辑：`预设（角色基线）+ 词库/词组（动作、场景、表情、细节）→ 自动拼接 → 一键复制到 ComfyUI`。
 
@@ -48,7 +48,7 @@ PromptVault 想把这三件事拆开解决：**存得住、找得到、拼得快
 | 词组库（经验组合管理） | ✅ 已完成 |
 | 词组库增强（类别 / 跨词组导入 / 统一搜索框） | ✅ 已完成 |
 | 词组库引用复用（全引用 / 递归合并 / 删除保护 / 正负向分开复制） | ✅ 已完成 |
-| 结构化编辑区（九分区 / 拖拽排序 / 权重 / 导出） | ⏳ 待开发 |
+| 结构化编辑区（动态分区 / 拖拽排序 / 权重 / 导出 / 存档） | ✅ 已完成 |
 | ComfyUI PNG 元数据反向导入 | ⏳ 待开发 |
 | AI 自然语言生成参考 Prompt | ⏳ 待开发 |
 
@@ -100,8 +100,8 @@ PromptVault/
 │   └── web/                     # REST 接口
 ├── src/main/resources/
 │   ├── application.yml
-│   ├── schema.sql               # 12 张表的结构定义（幂等，启动时 CREATE TABLE IF NOT EXISTS）
-│   └── mapper/                  # MyBatis SQL（Tag / TagGroup / Lora / Preset / PresetItem / Setting）
+│   ├── schema.sql               # 13 张表的结构定义（幂等，启动时 CREATE TABLE IF NOT EXISTS）
+│   └── mapper/                  # MyBatis SQL（Tag / TagGroup / Lora / Preset / PresetItem / Setting / Workspace / WorkspaceItem / WorkspaceArchive）
 ├── docs/
 │   ├── README.md                # 开发记录的写作约定与模板
 │   ├── devlog/                  # 每个阶段一页开发日志
@@ -113,7 +113,7 @@ PromptVault/
         ├── api/                 # 请求封装
         ├── components/          # 通用组件（SearchBox 等）
         ├── router/              # 路由
-        ├── views/               # 页面（词库、LoRA 档案、词组库、设置）
+        ├── views/               # 页面（词库、LoRA 档案、词组库、编辑区、设置）
         ├── App.vue              # 侧边栏布局
         └── main.js
 ```
@@ -128,8 +128,8 @@ PromptVault/
 | 架构决策记录（ADR） | 重大技术/产品选择的背景与后果 | [docs/adr](docs/adr/) |
 | 写作约定 | 何时写、怎么写、模板 | [docs/README.md](docs/README.md) |
 
-- 阶段日志：[阶段 0 · 项目骨架](docs/devlog/stage-0.md) · [阶段 1 · 全局词库](docs/devlog/stage-1.md) · [阶段 2 · LoRA 档案与预设](docs/devlog/stage-2.md) · [阶段 2.5a · 设置驱动分类](docs/devlog/stage-2.5a.md) · [阶段 2.5b · 词库交互](docs/devlog/stage-2.5b.md) · [阶段 2.5c · 词条收藏](docs/devlog/stage-2.5c.md) · [阶段 2.5d · 自动分类](docs/devlog/stage-2.5d.md) · [阶段 2.5e · 批量删除](docs/devlog/stage-2.5e.md) · [阶段 3 · 词组库](docs/devlog/stage-3.md) · [阶段 3.5 · 词组库增强](docs/devlog/stage-3.5.md) · [阶段 3.6 · 全引用复用模型](docs/devlog/stage-3.6.md)
-- 决策记录：[ADR-0001 本地 Web 应用](docs/adr/0001-local-web-app.md) · [ADR-0002 一次建全表结构](docs/adr/0002-schema-single-shot.md) · [ADR-0003 预设是角色基线](docs/adr/0003-preset-as-character-baseline.md) · [ADR-0004 负向词三层合并](docs/adr/0004-negative-prompt-layers.md) · [ADR-0005 设置驱动分类](docs/adr/0005-settings-driven-categories.md) · [ADR-0006 Schema 幂等增量](docs/adr/0006-schema-incremental-tables.md) · [ADR-0007 统一搜索框](docs/adr/0007-unified-search-box.md) · [ADR-0008 统一引用关系](docs/adr/0008-group-reference-model.md)
+- 阶段日志：[阶段 0 · 项目骨架](docs/devlog/stage-0.md) · [阶段 1 · 全局词库](docs/devlog/stage-1.md) · [阶段 2 · LoRA 档案与预设](docs/devlog/stage-2.md) · [阶段 2.5a · 设置驱动分类](docs/devlog/stage-2.5a.md) · [阶段 2.5b · 词库交互](docs/devlog/stage-2.5b.md) · [阶段 2.5c · 词条收藏](docs/devlog/stage-2.5c.md) · [阶段 2.5d · 自动分类](docs/devlog/stage-2.5d.md) · [阶段 2.5e · 批量删除](docs/devlog/stage-2.5e.md) · [阶段 3 · 词组库](docs/devlog/stage-3.md) · [阶段 3.5a · 词组库增强](docs/devlog/stage-3.5a.md) · [阶段 3.5b · 全引用复用模型](docs/devlog/stage-3.5b.md) · [阶段 4 · 结构化编辑区](docs/devlog/stage-4.md)
+- 决策记录：[ADR-0001 本地 Web 应用](docs/adr/0001-local-web-app.md) · [ADR-0002 一次建全表结构](docs/adr/0002-schema-single-shot.md) · [ADR-0003 预设是角色基线](docs/adr/0003-preset-as-character-baseline.md) · [ADR-0004 负向词三层合并](docs/adr/0004-negative-prompt-layers.md) · [ADR-0005 设置驱动分类](docs/adr/0005-settings-driven-categories.md) · [ADR-0006 Schema 幂等增量](docs/adr/0006-schema-incremental-tables.md) · [ADR-0007 统一搜索框](docs/adr/0007-unified-search-box.md) · [ADR-0008 统一引用关系](docs/adr/0008-group-reference-model.md) · [ADR-0009 分区跟随分类](docs/adr/0009-dynamic-sections-follow-categories.md) · [ADR-0010 存档独立快照](docs/adr/0010-workspace-archive-snapshot.md)
 
 > README 记录"现在是什么样"，devlog 记录"怎么变成这样"，ADR 记录"为什么这样定"。
 
@@ -147,6 +147,8 @@ PromptVault/
 | 词组 | `GET/POST /api/groups`、`GET/PUT/DELETE /api/groups/{id}`、`POST /api/groups/{id}/duplicate`、`GET /api/groups/categories`、`GET /api/groups/suggest` |
 | 词组条目 | `POST /api/groups/{id}/items`、`PUT/DELETE /api/groups/{id}/items/{itemId}`、`PUT /api/groups/{id}/items/order`、`POST /api/groups/{id}/items/import` |
 | 词组引用 | `POST /api/groups/{id}/refs`、`PUT/DELETE /api/groups/{id}/refs/{refId}` |
+| 编辑区 | `GET/POST /api/workspaces`、`GET/PUT/DELETE /api/workspaces/{id}`、`POST /api/workspaces/{id}/items`、`PUT/DELETE /api/workspaces/{id}/items/{itemId}`、`PUT /api/workspaces/{id}/items/order`、`POST /api/workspaces/{id}/items/{itemId}/unbind` |
+| 编辑区存档 | `GET/POST /api/archives`、`GET/DELETE /api/archives/{id}`、`POST /api/archives/import`、`POST /api/archives/{id}/restore` |
 | 系统设置 | `GET/PUT /api/settings` |
 
 > 词库与 LoRA 列表支持 `sort` / `order` 查询参数（字段白名单校验），用于表头排序。
@@ -172,7 +174,7 @@ PromptVault/
 | 3 | 词组库 | ✅ |
 | 3.5a | 词组库增强（类别 · 跨词组导入 · 统一搜索框） | ✅ |
 | 3.5b | 词组库全引用复用模型（引用关系 · 递归合并 · 删除保护） | ✅ |
-| 4 | 结构化编辑区 | ⏳ |
+| 4 | 结构化编辑区（动态分区 · 拖拽排序 · 权重 · 导出 · 存档） | ✅ |
 | 5 | PNG 元数据导入 | ⏳ |
 | 6 | AI 生成参考 Prompt | ⏳ |
 

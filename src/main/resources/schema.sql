@@ -127,6 +127,20 @@ CREATE TABLE IF NOT EXISTS workspace_item (
 
 CREATE INDEX IF NOT EXISTS idx_ws_item_ws ON workspace_item (workspace_id, sort_order);
 
+-- 编辑区存档：独立于 workspace 的配置快照，避免存档多了把编辑区下拉框挤爆
+CREATE TABLE IF NOT EXISTS workspace_archive (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                  TEXT    NOT NULL,
+    note                  TEXT,
+    source_workspace_id   INTEGER,
+    source_workspace_name TEXT,
+    item_count            INTEGER NOT NULL DEFAULT 0,
+    payload               TEXT    NOT NULL,  -- JSON：workspace 配置 + items + 导出文本快照
+    created_at            TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ws_archive_created ON workspace_archive (created_at);
+
 CREATE TABLE IF NOT EXISTS setting (
     key        TEXT PRIMARY KEY,
     value      TEXT,

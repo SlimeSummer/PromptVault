@@ -15,6 +15,12 @@ public interface TagGroupMapper {
                         @Param("category") String category,
                         @Param("keyword") String keyword);
 
+    /** 所有全局负面词组（编辑区导出负向词时作为第一层） */
+    List<TagGroup> listGlobalNegative();
+
+    /** 被多少个编辑区作为词组块引用 */
+    long countWorkspaceRefs(@Param("groupId") Long groupId);
+
     /** 按名称前缀补全，返回名称列表 */
     List<String> suggest(@Param("keyword") String keyword, @Param("limit") int limit);
 

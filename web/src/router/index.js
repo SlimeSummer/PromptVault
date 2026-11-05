@@ -3,6 +3,7 @@ import TagLibraryView from '@/views/TagLibraryView.vue'
 import LoraView from '@/views/LoraView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import GroupLibraryView from '@/views/GroupLibraryView.vue'
+import WorkspaceView from '@/views/WorkspaceView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -11,6 +12,7 @@ const router = createRouter({
     { path: '/tags', name: 'tags', component: TagLibraryView },
     { path: '/loras', name: 'loras', component: LoraView },
     { path: '/groups', name: 'groups', component: GroupLibraryView },
+    { path: '/workspace', name: 'workspace', component: WorkspaceView },
     { path: '/settings', name: 'settings', component: SettingsView }
   ]
 })

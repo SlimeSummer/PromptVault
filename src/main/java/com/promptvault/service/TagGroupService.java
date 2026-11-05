@@ -112,6 +112,20 @@ public class TagGroupService {
     }
 
     /**
+     * 供编辑区渲染使用：自身 + 递归引用链合并后的生效条目（已按优先级去重）。
+     */
+    public List<TagGroupItem> effectiveItems(Long groupId) {
+        TagGroup group = requireGroup(groupId);
+        List<TagGroupItem> ownItems = itemMapper.listByGroup(groupId);
+        for (TagGroupItem item : ownItems) {
+            item.setSourceGroupId(groupId);
+            item.setSourceGroupName(group.getName());
+        }
+        List<TagGroupItem> refItems = collectRefItemsRecursive(groupId);
+        return computeEffectiveItems(ownItems, refItems);
+    }
+
+    /**
      * 递归收集所有引用链的条目：
      * BFS从当前组出发，沿ref_group_id逐层扩展，深度≤MAX_REF_DEPTH。
      * 每层内按 priority → sort_order 排序，深度近的层先入队。
@@ -280,6 +294,11 @@ public class TagGroupService {
     @Transactional
     public void delete(Long id) {
         requireGroup(id);
+        // 编辑区正在使用的词组块不能删，否则编辑区渲染会静默丢内容
+        long workspaceCount = groupMapper.countWorkspaceRefs(id);
+        if (workspaceCount > 0) {
+            throw new BizException("该词组被 " + workspaceCount + " 个编辑区引用，请先在编辑区移除后再删除");
+        }
         // 删除保护：被其他组引用时禁止删除，返回引用明细供前端展示
         long incomingCount = groupMapper.countIncomingRefs(id);
         if (incomingCount > 0) {

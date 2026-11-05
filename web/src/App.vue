@@ -22,11 +22,10 @@
           <el-icon><Files /></el-icon>
           <span>词组库</span>
         </router-link>
-        <div class="menu-item locked">
+        <router-link to="/workspace" class="menu-item" active-class="active">
           <el-icon><EditPen /></el-icon>
           <span>编辑区</span>
-          <em>阶段 4</em>
-        </div>
+        </router-link>
         <router-link to="/settings" class="menu-item" active-class="active">
           <el-icon><Setting /></el-icon>
           <span>设置</span>

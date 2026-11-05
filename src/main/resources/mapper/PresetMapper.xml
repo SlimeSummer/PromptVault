@@ -22,6 +22,10 @@
         SELECT COUNT(*) FROM preset WHERE lora_id = #{loraId}
     </select>
 
+    <select id="countWorkspaceRefs" resultType="long">
+        SELECT COUNT(*) FROM workspace WHERE preset_id = #{presetId}
+    </select>
+
     <select id="maxSortOrder" resultType="int">
         SELECT COALESCE(MAX(sort_order), 0) FROM preset WHERE lora_id = #{loraId}
     </select>
