@@ -21,7 +21,8 @@ docs/
 │   ├── stage-2.5d.md      # 批量导入自动分类（规则版）
 │   ├── stage-2.5e.md      # 词条批量删除
 │   ├── stage-3.md         # 词组库
-│   └── stage-3.5.md       # 词组库增强（类别 / 导入 / 搜索框）
+│   ├── stage-3.5a.md      # 词组库增强（类别 / 导入 / 搜索框）
+│   └── stage-3.5b.md      # 词组库全引用复用模型
 └── adr/
     ├── 0001-local-web-app.md
     ├── 0002-schema-single-shot.md
@@ -29,7 +30,8 @@ docs/
     ├── 0004-negative-prompt-layers.md
     ├── 0005-settings-driven-categories.md
     ├── 0006-schema-incremental-tables.md
-    └── 0007-unified-search-box.md
+    ├── 0007-unified-search-box.md
+    └── 0008-group-reference-model.md
 ```
 
 ## 何时写

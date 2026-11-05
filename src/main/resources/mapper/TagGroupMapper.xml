@@ -100,4 +100,75 @@
         DELETE FROM tag_group WHERE id = #{id}
     </delete>
 
+    <!-- ===== 引用关系 group_ref ===== -->
+
+    <select id="listRefs" resultType="com.promptvault.entity.GroupRef">
+        SELECT
+            r.id,
+            r.group_id AS groupId,
+            r.ref_group_id AS refGroupId,
+            r.priority,
+            r.sort_order AS sortOrder,
+            g.name AS refGroupName,
+            g.scope AS refScope,
+            l.name AS refLoraName,
+            COALESCE((SELECT COUNT(*) FROM tag_group_item i WHERE i.group_id = r.ref_group_id), 0) AS refItemCount
+        FROM group_ref r
+        JOIN tag_group g ON g.id = r.ref_group_id
+        LEFT JOIN lora l ON l.id = g.lora_id
+        WHERE r.group_id = #{groupId}
+        ORDER BY r.priority, r.sort_order, r.id
+    </select>
+
+    <select id="listIncomingRefs" resultType="com.promptvault.entity.GroupRef">
+        SELECT
+            r.id,
+            r.group_id AS groupId,
+            r.ref_group_id AS refGroupId,
+            r.priority,
+            r.sort_order AS sortOrder,
+            g.name AS refGroupName,
+            g.scope AS refScope
+        FROM group_ref r
+        JOIN tag_group g ON g.id = r.group_id
+        WHERE r.ref_group_id = #{refGroupId}
+        ORDER BY r.priority, r.sort_order, r.id
+    </select>
+
+    <select id="countIncomingRefs" resultType="long">
+        SELECT COUNT(*) FROM group_ref WHERE ref_group_id = #{refGroupId}
+    </select>
+
+    <select id="countRefExists" resultType="long">
+        SELECT COUNT(*) FROM group_ref WHERE group_id = #{groupId} AND ref_group_id = #{refGroupId}
+    </select>
+
+    <insert id="insertRef" parameterType="com.promptvault.entity.GroupRef"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO group_ref (group_id, ref_group_id, priority, sort_order)
+        VALUES (#{groupId}, #{refGroupId}, #{priority}, #{sortOrder})
+    </insert>
+
+    <update id="updateRef" parameterType="com.promptvault.entity.GroupRef">
+        UPDATE group_ref
+        SET priority = #{priority}, sort_order = #{sortOrder}
+        WHERE id = #{id} AND group_id = #{groupId}
+    </update>
+
+    <delete id="deleteRef">
+        DELETE FROM group_ref WHERE id = #{id} AND group_id = #{groupId}
+    </delete>
+
+    <delete id="deleteRefsByGroup">
+        DELETE FROM group_ref WHERE group_id = #{groupId}
+    </delete>
+
+    <select id="maxRefSortOrder" resultType="int">
+        SELECT COALESCE(MAX(sort_order), -1) FROM group_ref WHERE group_id = #{groupId}
+    </select>
+
+    <select id="maxPriority" resultType="int">
+        SELECT COALESCE(MAX(priority), -1) FROM group_ref WHERE group_id = #{groupId}
+    </select>
+
 </mapper>

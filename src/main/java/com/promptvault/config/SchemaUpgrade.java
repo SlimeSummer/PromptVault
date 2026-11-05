@@ -30,6 +30,30 @@ public class SchemaUpgrade implements ApplicationRunner {
         ensureColumn("tag_group", "category",
                 "ALTER TABLE tag_group ADD COLUMN category TEXT NOT NULL DEFAULT 'other'");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_group_category ON tag_group (category)");
+
+        // 统一引用表：幂等创建 + 旧 parent_id 数据迁移
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS group_ref (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "group_id INTEGER NOT NULL," +
+                "ref_group_id INTEGER NOT NULL," +
+                "priority INTEGER NOT NULL DEFAULT 0," +
+                "sort_order INTEGER NOT NULL DEFAULT 0," +
+                "UNIQUE (group_id, ref_group_id)" +
+                ")");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_group_ref_group ON group_ref (group_id, priority, sort_order)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_group_ref_ref ON group_ref (ref_group_id)");
+
+        // 旧 parent_id 迁移：只迁未迁过的（group_ref 里没有的）
+        try {
+            jdbcTemplate.update(
+                "INSERT OR IGNORE INTO group_ref (group_id, ref_group_id, priority, sort_order) " +
+                "SELECT id, parent_id, 0, 0 FROM tag_group WHERE parent_id IS NOT NULL " +
+                "AND NOT EXISTS (SELECT 1 FROM group_ref gr WHERE gr.group_id = tag_group.id AND gr.ref_group_id = tag_group.parent_id)"
+            );
+            log.info("旧父级继承数据已迁移进 group_ref 表");
+        } catch (Exception e) {
+            log.warn("迁移旧父级继承数据失败（可忽略）：{}", e.getMessage());
+        }
     }
 
     private void ensureColumn(String table, String column, String alterSql) {

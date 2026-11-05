@@ -23,6 +23,8 @@ public class TagGroup {
     /** 列表联查字段 */
     private Long itemCount;
     private String loraName;
+    /** 被引用的次数（列表/详情展示用） */
+    private Long incomingRefCount;
 
     public Long getId() {
         return id;
@@ -118,5 +120,13 @@ public class TagGroup {
 
     public void setLoraName(String loraName) {
         this.loraName = loraName;
+    }
+
+    public Long getIncomingRefCount() {
+        return incomingRefCount;
+    }
+
+    public void setIncomingRefCount(Long incomingRefCount) {
+        this.incomingRefCount = incomingRefCount;
     }
 }

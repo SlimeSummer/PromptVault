@@ -16,6 +16,9 @@ public class TagGroupItem {
     private String prompt;
     private String nameZh;
     private String category;
+    /** 继承条目的来源词组（仅详情返回继承条目时填充） */
+    private Long sourceGroupId;
+    private String sourceGroupName;
 
     public Long getId() {
         return id;
@@ -87,5 +90,21 @@ public class TagGroupItem {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public Long getSourceGroupId() {
+        return sourceGroupId;
+    }
+
+    public void setSourceGroupId(Long sourceGroupId) {
+        this.sourceGroupId = sourceGroupId;
+    }
+
+    public String getSourceGroupName() {
+        return sourceGroupName;
+    }
+
+    public void setSourceGroupName(String sourceGroupName) {
+        this.sourceGroupName = sourceGroupName;
     }
 }

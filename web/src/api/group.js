@@ -38,3 +38,13 @@ export const reorderGroupItems = (id, itemIds) =>
 
 export const importGroupItems = (id, sourceGroupId) =>
   post(`/api/groups/${id}/items/import`, { sourceGroupId })
+
+// 引用关系
+export const addGroupRef = (id, refGroupId, priority, sortOrder) =>
+  post(`/api/groups/${id}/refs`, { refGroupId, priority, sortOrder })
+
+export const updateGroupRef = (id, refId, priority, sortOrder) =>
+  put(`/api/groups/${id}/refs/${refId}`, { priority, sortOrder })
+
+export const removeGroupRef = (id, refId) =>
+  del(`/api/groups/${id}/refs/${refId}`)

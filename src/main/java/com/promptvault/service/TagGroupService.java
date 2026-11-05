@@ -2,6 +2,7 @@ package com.promptvault.service;
 
 import com.promptvault.common.BizException;
 import com.promptvault.dto.GroupItemOrderRequest;
+import com.promptvault.entity.GroupRef;
 import com.promptvault.entity.Lora;
 import com.promptvault.entity.Tag;
 import com.promptvault.entity.TagGroup;
@@ -13,9 +14,14 @@ import com.promptvault.mapper.TagMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class TagGroupService {
@@ -23,6 +29,8 @@ public class TagGroupService {
     public static final List<String> KINDS = List.of("normal", "global_negative");
     public static final List<String> SCOPES = List.of("global", "lora");
     public static final List<String> POLARITIES = List.of("pos", "neg");
+    /** 环检测最大搜索深度（防止脏数据导致的死循环） */
+    private static final int MAX_REF_DEPTH = 10;
 
     private final TagGroupMapper groupMapper;
     private final TagGroupItemMapper itemMapper;
@@ -55,7 +63,12 @@ public class TagGroupService {
         } else if ("global".equals(scope)) {
             safeScope = "global";
         }
-        return groupMapper.list(safeScope, loraId, cat, kw);
+        List<TagGroup> result = groupMapper.list(safeScope, loraId, cat, kw);
+        // 填充被引用次数（列表展示用）
+        for (TagGroup g : result) {
+            g.setIncomingRefCount(groupMapper.countIncomingRefs(g.getId()));
+        }
+        return result;
     }
 
     public List<String> suggest(String keyword, int limit) {
@@ -64,14 +77,114 @@ public class TagGroupService {
         return groupMapper.suggest(kw, safeLimit);
     }
 
+    /**
+     * 详情：返回组自身 + 自身条目 + 引用列表 + 被引用列表（删除保护用）
+     * 以及合并后的 effectiveItems（自身 + 递归所有引用链按深度+优先级去重，自身优先）
+     */
     public Map<String, Object> detail(Long id) {
         TagGroup group = requireGroup(id);
-        List<TagGroupItem> items = itemMapper.listByGroup(id);
+        List<TagGroupItem> ownItems = itemMapper.listByGroup(id);
+        List<GroupRef> refs = groupMapper.listRefs(id);
+        List<GroupRef> incomingRefs = groupMapper.listIncomingRefs(id);
+        group.setIncomingRefCount((long) incomingRefs.size());
+
+        // 递归拉引用链的条目：从当前组出发，BFS收集所有可达的组的条目
+        // 深度近的优先，同深度按 priority + sort_order
+        List<TagGroupItem> refItems = collectRefItemsRecursive(id);
+
+        // 自身条目标记为自有
+        for (TagGroupItem item : ownItems) {
+            item.setSourceGroupId(id);
+            item.setSourceGroupName(group.getName());
+        }
+
+        // 计算生效条目：自身 > 递归引用（深度近优先，同深度priority高优先）
+        List<TagGroupItem> effectiveItems = computeEffectiveItems(ownItems, refItems);
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("group", group);
-        result.put("items", items);
+        result.put("items", ownItems);
+        result.put("refs", refs);
+        result.put("incomingRefs", incomingRefs);
+        result.put("refItems", refItems);
+        result.put("effectiveItems", effectiveItems);
         return result;
     }
+
+    /**
+     * 递归收集所有引用链的条目：
+     * BFS从当前组出发，沿ref_group_id逐层扩展，深度≤MAX_REF_DEPTH。
+     * 每层内按 priority → sort_order 排序，深度近的层先入队。
+     */
+    private List<TagGroupItem> collectRefItemsRecursive(Long groupId) {
+        List<TagGroupItem> result = new ArrayList<>();
+        Set<Long> visited = new HashSet<>();
+        visited.add(groupId);
+
+        // 每层是一个 List<GroupRef>，表示当前层要遍历的引用
+        List<Long> currentLayer = new ArrayList<>();
+        for (GroupRef r : groupMapper.listRefs(groupId)) {
+            if (visited.add(r.getRefGroupId())) {
+                currentLayer.add(r.getRefGroupId());
+            }
+        }
+
+        int depth = 1;
+        while (!currentLayer.isEmpty() && depth <= MAX_REF_DEPTH) {
+            // 先把当前层所有组的条目加进结果
+            for (Long refGroupId : currentLayer) {
+                TagGroup refGroup = groupMapper.findById(refGroupId);
+                if (refGroup == null) continue;
+                List<TagGroupItem> items = itemMapper.listByGroup(refGroupId);
+                for (TagGroupItem item : items) {
+                    item.setSourceGroupId(refGroupId);
+                    item.setSourceGroupName(refGroup.getName());
+                    result.add(item);
+                }
+            }
+
+            // 再找下一层（当前层所有组引用的组）
+            List<Long> nextLayer = new ArrayList<>();
+            for (Long refGroupId : currentLayer) {
+                for (GroupRef r : groupMapper.listRefs(refGroupId)) {
+                    if (visited.add(r.getRefGroupId())) {
+                        nextLayer.add(r.getRefGroupId());
+                    }
+                }
+            }
+            currentLayer = nextLayer;
+            depth++;
+        }
+        return result;
+    }
+
+    /**
+     * 合并生效条目：自身优先，引用按 priority 升序（小=高）、sort_order 升序。
+     * 同 tagId + 同 polarity 只保留一个，优先级高的胜。
+     */
+    private List<TagGroupItem> computeEffectiveItems(List<TagGroupItem> ownItems,
+                                                      List<TagGroupItem> refItems) {
+        // 先放引用（按已排好的顺序），自身后放自然覆盖
+        Map<String, TagGroupItem> merged = new LinkedHashMap<>();
+        for (TagGroupItem item : refItems) {
+            String key = itemKey(item);
+            if (!merged.containsKey(key)) {
+                merged.put(key, item);
+            }
+        }
+        for (TagGroupItem item : ownItems) {
+            String key = itemKey(item);
+            // 自身条目总是覆盖引用
+            merged.put(key, item);
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private String itemKey(TagGroupItem item) {
+        return item.getTagId() + "|" + item.getPolarity();
+    }
+
+    // --- 组 CRUD ---
 
     public TagGroup create(TagGroup group) {
         normalize(group);
@@ -137,6 +250,22 @@ public class TagGroupService {
         target.setCategory(category);
         target.setNote(blankToNull(group.getNote()));
 
+        // 范围 / 归属变化时，检查现有引用是否跨范围（如果有，拒绝更新）
+        boolean scopeChanged = !scope.equals(existing.getScope());
+        boolean loraChanged = scope.equals("lora") && loraId != null && !loraId.equals(existing.getLoraId());
+        if (scopeChanged || loraChanged) {
+            List<GroupRef> existingRefs = groupMapper.listRefs(id);
+            for (GroupRef ref : existingRefs) {
+                TagGroup refGroup = groupMapper.findById(ref.getRefGroupId());
+                if (refGroup == null) continue;
+                // 检查新范围是否能引用旧引用组
+                if (!canReference(target.getScope(), target.getLoraId(), refGroup.getScope(), refGroup.getLoraId())) {
+                    throw new BizException("范围变更后，现有引用「" + refGroup.getName() + "」将跨范围，请先解除引用");
+                }
+            }
+            // 还要检查引用我的那些组——它们的范围是否还能引用我（其实引用我的组不会被我改范围影响，这里跳过）
+        }
+
         // 范围 / 归属变化时重新排到新桶的末尾，避免与已有 sort_order 冲突
         boolean relocated = !scope.equals(existing.getScope())
                 || (loraId != null && !loraId.equals(existing.getLoraId()));
@@ -150,15 +279,26 @@ public class TagGroupService {
 
     @Transactional
     public void delete(Long id) {
-        TagGroup existing = requireGroup(id);
-        // 阶段 4 workspace 完成后在此加 workspace 引用检查
-        if (itemMapper.listByGroup(id).isEmpty()) {
-            itemMapper.deleteByGroup(id);
+        requireGroup(id);
+        // 删除保护：被其他组引用时禁止删除，返回引用明细供前端展示
+        long incomingCount = groupMapper.countIncomingRefs(id);
+        if (incomingCount > 0) {
+            List<GroupRef> incomingRefs = groupMapper.listIncomingRefs(id);
+            throw new BizException("该词组被 " + incomingCount + " 个词组引用（" +
+                    String.join("、", incomingRefs.stream()
+                            .map(r -> r.getRefGroupName() != null ? r.getRefGroupName() : "组#" + r.getGroupId())
+                            .toArray(String[]::new)) +
+                    "），请先解除所有引用后再删除");
         }
+        // 联动清理引用关系（我引用别人的 + 别人引用我的——上面已经拦住了别人引用我的情况，这里只清理我引用别人的）
+        groupMapper.deleteRefsByGroup(id);
+        // 清理条目
+        itemMapper.deleteByGroup(id);
+        // 最后删除组
         groupMapper.delete(id);
     }
 
-    /** 复制词组：保留所有条目，名称加"副本" */
+    /** 复制词组：保留所有条目，名称加"副本"；不复制引用关系（用户可手动添加） */
     @Transactional
     public TagGroup duplicate(Long id) {
         TagGroup source = requireGroup(id);
@@ -182,6 +322,110 @@ public class TagGroupService {
             itemMapper.insert(copied);
         }
         return groupMapper.findById(copy.getId());
+    }
+
+    // --- 引用关系管理 ---
+
+    /** 添加引用：校验范围、环检测 */
+    public GroupRef addRef(Long groupId, Long refGroupId, Integer priority, Integer sortOrder) {
+        TagGroup group = requireGroup(groupId);
+        if (refGroupId == null || refGroupId.equals(groupId)) {
+            throw new BizException("不能引用自己");
+        }
+        TagGroup refGroup = groupMapper.findById(refGroupId);
+        if (refGroup == null) {
+            throw new BizException("被引用的词组不存在，可能已被删除");
+        }
+        // 范围校验
+        if (!canReference(group.getScope(), group.getLoraId(), refGroup.getScope(), refGroup.getLoraId())) {
+            throw new BizException("引用词组范围不一致（需同为全局或同一 LoRA）");
+        }
+        // 查重
+        if (groupMapper.countRefExists(groupId, refGroupId) > 0) {
+            throw new BizException("已经引用过这个词组了");
+        }
+        // 环检测：DFS 查 refGroup 的引用链里有没有 groupId
+        if (createsCycle(groupId, refGroupId)) {
+            throw new BizException("引用会形成循环（例如 A→B→A）");
+        }
+
+        // 默认优先级/顺序
+        int prio = priority != null ? priority : groupMapper.maxPriority(groupId) + 1;
+        int order = sortOrder != null ? sortOrder : groupMapper.maxRefSortOrder(groupId) + 1;
+
+        GroupRef ref = new GroupRef();
+        ref.setGroupId(groupId);
+        ref.setRefGroupId(refGroupId);
+        ref.setPriority(prio);
+        ref.setSortOrder(order);
+        groupMapper.insertRef(ref);
+        return ref;
+    }
+
+    /** 更新引用的优先级/顺序 */
+    public void updateRef(Long groupId, Long refId, Integer priority, Integer sortOrder) {
+        requireGroup(groupId);
+        GroupRef existing = findRefOrThrow(groupId, refId);
+        GroupRef update = new GroupRef();
+        update.setId(refId);
+        update.setGroupId(groupId);
+        update.setPriority(priority != null ? priority : existing.getPriority());
+        update.setSortOrder(sortOrder != null ? sortOrder : existing.getSortOrder());
+        groupMapper.updateRef(update);
+    }
+
+    /** 删除引用 */
+    public void removeRef(Long groupId, Long refId) {
+        requireGroup(groupId);
+        findRefOrThrow(groupId, refId); // 确保引用存在且属于当前组
+        groupMapper.deleteRef(refId, groupId);
+    }
+
+    /** DFS 环检测：从 refGroup 出发，沿它的引用链向上，看能不能遇到 groupId */
+    private boolean createsCycle(Long groupId, Long refGroupId) {
+        Set<Long> visited = new HashSet<>();
+        List<Long> queue = new ArrayList<>();
+        queue.add(refGroupId);
+        int depth = 0;
+        while (!queue.isEmpty() && depth < MAX_REF_DEPTH) {
+            List<Long> next = new ArrayList<>();
+            for (Long cur : queue) {
+                if (cur.equals(groupId)) {
+                    return true; // 回到起点，成环
+                }
+                if (!visited.add(cur)) {
+                    continue;
+                }
+                // 查 cur 引用了谁，继续向上
+                for (GroupRef r : groupMapper.listRefs(cur)) {
+                    next.add(r.getRefGroupId());
+                }
+            }
+            queue = next;
+            depth++;
+        }
+        return false;
+    }
+
+    /** 范围是否匹配：global 只能引用 global；lora 只能引用同 lora */
+    private boolean canReference(String myScope, Long myLoraId, String refScope, Long refLoraId) {
+        if (!myScope.equals(refScope)) {
+            return false;
+        }
+        if ("lora".equals(myScope)) {
+            return myLoraId != null && myLoraId.equals(refLoraId);
+        }
+        return true;
+    }
+
+    private GroupRef findRefOrThrow(Long groupId, Long refId) {
+        List<GroupRef> refs = groupMapper.listRefs(groupId);
+        for (GroupRef ref : refs) {
+            if (ref.getId().equals(refId)) {
+                return ref;
+            }
+        }
+        throw new BizException("引用不存在，可能已被删除");
     }
 
     // --- 条目管理 ---

@@ -4,6 +4,8 @@ import com.promptvault.common.ApiResponse;
 import com.promptvault.dto.CategoryOption;
 import com.promptvault.dto.GroupImportRequest;
 import com.promptvault.dto.GroupItemOrderRequest;
+import com.promptvault.dto.GroupRefRequest;
+import com.promptvault.entity.GroupRef;
 import com.promptvault.entity.TagGroup;
 import com.promptvault.entity.TagGroupItem;
 import com.promptvault.service.SettingService;
@@ -113,5 +115,30 @@ public class TagGroupController {
             throw new com.promptvault.common.BizException("请选择要导入的词组");
         }
         return ApiResponse.ok(groupService.importItems(id, request.getSourceGroupId()));
+    }
+
+    // --- 引用关系管理 ---
+
+    @PostMapping("/{id}/refs")
+    public ApiResponse<GroupRef> addRef(@PathVariable Long id, @RequestBody GroupRefRequest request) {
+        if (request == null || request.getRefGroupId() == null) {
+            throw new com.promptvault.common.BizException("请选择要引用的词组");
+        }
+        return ApiResponse.ok(groupService.addRef(id, request.getRefGroupId(), request.getPriority(), request.getSortOrder()));
+    }
+
+    @PutMapping("/{id}/refs/{refId}")
+    public ApiResponse<Void> updateRef(@PathVariable Long id,
+                                       @PathVariable Long refId,
+                                       @RequestBody GroupRefRequest request) {
+        groupService.updateRef(id, refId, request != null ? request.getPriority() : null,
+                request != null ? request.getSortOrder() : null);
+        return ApiResponse.ok();
+    }
+
+    @DeleteMapping("/{id}/refs/{refId}")
+    public ApiResponse<Void> removeRef(@PathVariable Long id, @PathVariable Long refId) {
+        groupService.removeRef(id, refId);
+        return ApiResponse.ok();
     }
 }

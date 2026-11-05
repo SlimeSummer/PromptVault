@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS tag_group (
     scope      TEXT    NOT NULL DEFAULT 'global',  -- global / lora
     lora_id    INTEGER,
     category   TEXT    NOT NULL DEFAULT 'other',   -- 词组分类，取值由 setting.group.categories 驱动
+    -- parent_id 废弃：复用统一的 group_ref 引用关系表；旧库数据由 SchemaUpgrade 迁移进 group_ref
+    parent_id  INTEGER,
     note       TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
@@ -75,6 +77,20 @@ CREATE TABLE IF NOT EXISTS tag_group (
 
 CREATE INDEX IF NOT EXISTS idx_group_scope ON tag_group (scope, lora_id);
 -- 注意：category 列在旧库上由 SchemaUpgrade 补列后再建索引，这里不能提前建
+
+-- 词组引用关系：统一复用入口，替代旧的单父级继承
+-- 一个组可引用多个其他组，引用条目按 priority + sort_order 生效，自身条目优先级最高
+CREATE TABLE IF NOT EXISTS group_ref (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id    INTEGER NOT NULL,       -- 当前组（被引用方？不，是「我引用了谁」的发出方）
+    ref_group_id INTEGER NOT NULL,      -- 被引用的组
+    priority    INTEGER NOT NULL DEFAULT 0,  -- 优先级（数字越小=越高，0 最高）
+    sort_order  INTEGER NOT NULL DEFAULT 0,  -- 同优先级下的顺序
+    UNIQUE (group_id, ref_group_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_group_ref_group ON group_ref (group_id, priority, sort_order);
+CREATE INDEX IF NOT EXISTS idx_group_ref_ref ON group_ref (ref_group_id);
 
 CREATE TABLE IF NOT EXISTS tag_group_item (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

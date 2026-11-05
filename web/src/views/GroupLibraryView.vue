@@ -59,6 +59,9 @@
           <el-tag v-if="row.kind === 'global_negative'" type="danger" effect="plain" size="small">
             全局负面
           </el-tag>
+          <el-tag v-if="row.incomingRefCount > 0" type="warning" effect="plain" size="small">
+            被引用 {{ row.incomingRefCount }}
+          </el-tag>
         </template>
       </el-table-column>
 
@@ -161,11 +164,11 @@
       </template>
     </el-drawer>
 
-    <!-- 详情抽屉（条目管理） -->
+    <!-- 详情抽屉 -->
     <el-drawer
       v-model="detailVisible"
       :title="detailGroup?.name ? `${detailGroup.name} - 条目` : '词组详情'"
-      size="620px"
+      size="680px"
       @closed="resetDetail"
     >
       <div v-if="detailGroup" class="detail-head">
@@ -174,7 +177,47 @@
         </el-tag>
         <el-tag size="small" type="info" effect="plain">{{ categoryLabel(detailGroup.category) }}</el-tag>
         <span v-if="detailGroup.note" class="muted">{{ detailGroup.note }}</span>
-        <el-button class="import-btn" :icon="Files" @click="openImport">从词组库添加</el-button>
+      </div>
+
+      <!-- 引用词组库管理区 -->
+      <div class="ref-section">
+        <div class="ref-section-header">
+          <span class="ref-section-title">📎 引用的词组库</span>
+          <el-button size="small" type="primary" plain @click="openAddRef">+ 添加引用</el-button>
+        </div>
+        <div v-if="detailRefs.length" class="ref-list">
+          <div
+            v-for="ref in detailRefs"
+            :key="ref.id"
+            class="ref-item"
+          >
+            <el-link class="ref-name" @click="navigateDetail(ref.refGroupId)">
+              {{ ref.refGroupName }}
+            </el-link>
+            <el-tag v-if="ref.refItemCount != null" size="small" effect="plain" type="info">
+              {{ ref.refItemCount }} 条
+            </el-tag>
+            <el-input-number
+              v-model="ref.priority"
+              :min="0"
+              size="small"
+              class="ref-priority"
+              controls-position="right"
+              @change="(v) => onUpdateRef(ref)"
+            />
+            <el-button
+              link
+              type="danger"
+              size="small"
+              @click="onRemoveRef(ref)"
+            >
+              移除
+            </el-button>
+          </div>
+        </div>
+        <div v-else class="muted ref-empty">
+          还没有引用任何词组库。可以添加其他词组库来自动同步它们的条目。
+        </div>
       </div>
 
       <el-tabs v-model="detailPolarity" class="detail-tabs">
@@ -210,6 +253,37 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <!-- 引用条目：按来源分组 -->
+          <template v-if="groupedRefItems('pos').length">
+            <div
+              v-for="group in groupedRefItems('pos')"
+              :key="group.sourceGroupId"
+              class="inherit-block"
+            >
+              <div class="inherit-title">
+                引用自
+                <el-link type="primary" @click="navigateDetail(group.sourceGroupId)">
+                  {{ group.sourceGroupName }}
+                </el-link>
+              </div>
+              <el-table :data="group.items" border size="small" class="item-table">
+                <el-table-column prop="prompt" label="提示词" min-width="180">
+                  <template #default="{ row }">
+                    <code class="prompt-text">{{ row.prompt }}</code>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nameZh" label="中文" width="110">
+                  <template #default="{ row }">
+                    <span class="muted">{{ row.nameZh || '—' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="权重" width="70" align="center">
+                  <template #default="{ row }">{{ row.weight }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </template>
         </el-tab-pane>
 
         <el-tab-pane label="负向" name="neg">
@@ -244,52 +318,88 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <template v-if="groupedRefItems('neg').length">
+            <div
+              v-for="group in groupedRefItems('neg')"
+              :key="group.sourceGroupId"
+              class="inherit-block"
+            >
+              <div class="inherit-title">
+                引用自
+                <el-link type="primary" @click="navigateDetail(group.sourceGroupId)">
+                  {{ group.sourceGroupName }}
+                </el-link>
+              </div>
+              <el-table :data="group.items" border size="small" class="item-table">
+                <el-table-column prop="prompt" label="提示词" min-width="180">
+                  <template #default="{ row }">
+                    <code class="prompt-text">{{ row.prompt }}</code>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nameZh" label="中文" width="110">
+                  <template #default="{ row }">
+                    <span class="muted">{{ row.nameZh || '—' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="权重" width="70" align="center">
+                  <template #default="{ row }">{{ row.weight }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </template>
         </el-tab-pane>
       </el-tabs>
 
       <div class="detail-footer">
-        <el-button :icon="DocumentCopy" @click="onCopyPreview">复制拼接结果</el-button>
+        <span v-if="detailEffectiveItems.length !== (posItems.length + negItems.length)" class="muted inherit-hint">
+          含引用条目，复制为合并后的生效内容（自身优先）
+        </span>
+        <el-button :icon="DocumentCopy" @click="copyPolarity('pos')">复制正向</el-button>
+        <el-button :icon="DocumentCopy" @click="copyPolarity('neg')">复制负向</el-button>
       </div>
     </el-drawer>
 
-    <!-- 从词组库导入 -->
-    <el-dialog v-model="importVisible" title="从词组库添加" width="560px" append-to-body>
-      <p class="muted import-tip">
-        将所选词组的条目导入「{{ detailGroup?.name }}」，已存在的条目会自动跳过。
-      </p>
+    <!-- 添加引用弹窗 -->
+    <el-dialog v-model="addRefVisible" title="添加引用词组库" width="560px" append-to-body>
+      <p class="muted">添加后会自动同步该词组库的条目；原库改动后这里会自动更新。</p>
       <SearchBox
-        v-model="importKeyword"
+        v-model="addRefKeyword"
         :suggest="fetchGroupSuggestions"
-        placeholder="搜索词组名称"
-        @search="loadImportGroups"
+        placeholder="搜索要引用的词组名称"
+        @search="loadAddRefCandidates"
       />
       <el-table
-        v-loading="importLoading"
-        :data="importGroups"
+        v-loading="addRefLoading"
+        :data="addRefCandidates"
         border
         size="small"
-        height="320"
+        height="280"
         highlight-current-row
         class="import-table"
-        @current-change="(row) => (importSourceId = row ? row.id : null)"
+        @current-change="(row) => (addRefSourceId = row ? row.id : null)"
       >
         <el-table-column prop="name" label="词组" min-width="200" />
+        <el-table-column label="范围" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.scope === 'global' ? 'info' : 'success'">
+              {{ row.scope === 'global' ? '全局' : (row.loraName || 'LoRA') }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="类别" width="90" align="center">
           <template #default="{ row }">
             <el-tag size="small" type="info" effect="plain">{{ categoryLabel(row.category) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="itemCount" label="条目" width="70" align="center">
-          <template #default="{ row }">{{ row.itemCount || 0 }}</template>
-        </el-table-column>
         <template #empty>
-          <el-empty description="没有可导入的词组" :image-size="60" />
+          <el-empty description="没有匹配的词组（范围需一致）" :image-size="60" />
         </template>
       </el-table>
       <template #footer>
-        <el-button @click="importVisible = false">取消</el-button>
-        <el-button type="primary" :loading="importSaving" :disabled="!importSourceId" @click="doImport">
-          导入
+        <el-button @click="addRefVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addRefSaving" :disabled="!addRefSourceId" @click="doAddRef">
+          添加引用
         </el-button>
       </template>
     </el-dialog>
@@ -299,8 +409,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentCopy, Files, Plus } from '@element-plus/icons-vue'
+import { DocumentCopy, Plus } from '@element-plus/icons-vue'
 import {
+  addGroupRef,
   addGroupItem,
   createGroup,
   deleteGroup,
@@ -310,9 +421,10 @@ import {
   fetchGroupDetail,
   fetchGroups,
   fetchGroupSuggestions,
-  importGroupItems,
+  removeGroupRef,
   updateGroup,
-  updateGroupItem
+  updateGroupItem,
+  updateGroupRef
 } from '@/api/group'
 import { fetchLoras } from '@/api/lora'
 import AddTagRow from '@/components/AddTagRow.vue'
@@ -376,19 +488,49 @@ const detailVisible = ref(false)
 const detailGroup = ref(null)
 const detailPolarity = ref('pos')
 const detailItems = ref([])
+const detailRefs = ref([])
+const detailRefItems = ref([])
+const detailEffectiveItems = ref([])
+const detailIncomingRefs = ref([])
 
-// --- 从词组库导入 ---
-const importVisible = ref(false)
-const importLoading = ref(false)
-const importSaving = ref(false)
-const importGroups = ref([])
-const importKeyword = ref('')
-const importSourceId = ref(null)
+// --- 添加引用弹窗 ---
+const addRefVisible = ref(false)
+const addRefKeyword = ref('')
+const addRefSourceId = ref(null)
+const addRefCandidates = ref([])
+const addRefLoading = ref(false)
+const addRefSaving = ref(false)
 
 const posItems = computed(() => detailItems.value.filter((i) => i.polarity === 'pos'))
 const negItems = computed(() => detailItems.value.filter((i) => i.polarity === 'neg'))
 const posTagIds = computed(() => posItems.value.map((i) => i.tagId))
 const negTagIds = computed(() => negItems.value.map((i) => i.tagId))
+
+/** 引用条目按来源分组（去重：自身条目优先覆盖引用条目） */
+function groupedRefItems(polarity) {
+  const ownTagIds = new Set(
+    (polarity === 'pos' ? posItems.value : negItems.value).map((i) => i.tagId)
+  )
+  const filtered = detailRefItems.value.filter(
+    (i) => i.polarity === polarity && !ownTagIds.has(i.tagId)
+  )
+  const groups = []
+  const seenSources = new Set()
+  for (const item of filtered) {
+    const key = item.sourceGroupId + '|' + polarity
+    if (seenSources.has(key)) continue
+    seenSources.add(key)
+    // 把同一来源的条目分在一起
+    groups.push({
+      sourceGroupId: item.sourceGroupId,
+      sourceGroupName: item.sourceGroupName,
+      items: filtered.filter(
+        (i) => i.sourceGroupId === item.sourceGroupId && i.polarity === polarity
+      )
+    })
+  }
+  return groups
+}
 
 async function load() {
   loading.value = true
@@ -470,18 +612,19 @@ async function submitEdit() {
   }
   saving.value = true
   try {
+    const payload = {
+      name: editForm.name,
+      kind: editForm.kind,
+      category: editForm.category,
+      scope: editForm.scope,
+      loraId: editForm.scope === 'lora' ? editForm.loraId : null,
+      note: editForm.note
+    }
     if (editMode.value === 'create') {
-      await createGroup(editForm)
+      await createGroup(payload)
       ElMessage.success('已新增词组')
     } else {
-      await updateGroup(editForm.id, {
-        name: editForm.name,
-        kind: editForm.kind,
-        category: editForm.category,
-        scope: editForm.scope,
-        loraId: editForm.scope === 'lora' ? editForm.loraId : null,
-        note: editForm.note
-      })
+      await updateGroup(editForm.id, payload)
       ElMessage.success('已保存修改')
     }
     editVisible.value = false
@@ -512,14 +655,25 @@ async function remove(row) {
     ElMessage.success('已删除')
     await load()
   } catch (e) {
-    ElMessage.error(e.message)
+    // 被引用时后端返回带引用明细的错误消息
+    if (e.code === 1 && row.incomingRefCount > 0) {
+      try {
+        await ElMessageBox.alert(
+          e.message,
+          '无法删除：被其他词组引用',
+          { type: 'error', confirmButtonText: '知道了' }
+        )
+      } catch (_) {}
+    } else {
+      ElMessage.error(e.message)
+    }
   }
 }
 
 async function duplicate(row) {
   try {
     await duplicateGroup(row.id)
-    ElMessage.success('已复制')
+    ElMessage.success('已复制（仅复制自身条目，引用关系需手动添加）')
     await load()
   } catch (e) {
     ElMessage.error(e.message)
@@ -529,15 +683,19 @@ async function duplicate(row) {
 // --- 详情 ---
 
 async function openDetail(row) {
-  detailGroup.value = row
   detailVisible.value = true
-  await loadDetail(row.id)
+  await navigateDetail(row.id)
 }
 
-async function loadDetail(id) {
+async function navigateDetail(id) {
   try {
     const data = await fetchGroupDetail(id)
+    detailGroup.value = data.group
     detailItems.value = data.items || []
+    detailRefs.value = data.refs || []
+    detailRefItems.value = data.refItems || []
+    detailEffectiveItems.value = data.effectiveItems || []
+    detailIncomingRefs.value = data.incomingRefs || []
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -546,6 +704,10 @@ async function loadDetail(id) {
 function resetDetail() {
   detailGroup.value = null
   detailItems.value = []
+  detailRefs.value = []
+  detailRefItems.value = []
+  detailEffectiveItems.value = []
+  detailIncomingRefs.value = []
   detailPolarity.value = 'pos'
 }
 
@@ -587,13 +749,14 @@ async function deleteItem(row) {
   }
 }
 
-function onCopyPreview() {
-  const parts = detailItems.value
-    .filter((i) => i.polarity === 'pos')
-    .map((i) => formatPrompt(i.prompt, i.weight))
+/** 复制生效拼接结果：用后端返回的合并后 effectiveItems */
+function copyPolarity(polarity) {
+  const effective = detailEffectiveItems.value.filter((i) => i.polarity === polarity)
+  const parts = effective.map((i) => formatPrompt(i.prompt, i.weight))
   const text = parts.join(', ')
+  const label = polarity === 'pos' ? '正向' : '负向'
   navigator.clipboard.writeText(text).then(
-    () => ElMessage.success(`正向拼接已复制（${parts.length} 条）`),
+    () => ElMessage.success(`${label}拼接已复制（${parts.length} 条）`),
     () => ElMessage.error('复制失败')
   )
 }
@@ -603,45 +766,78 @@ function formatPrompt(prompt, weight) {
   return `(${prompt}:${weight.toFixed(1)})`
 }
 
-async function openImport() {
-  importKeyword.value = ''
-  importSourceId.value = null
-  importGroups.value = []
-  importVisible.value = true
-  await loadImportGroups()
+// --- 引用管理 ---
+
+function openAddRef() {
+  addRefKeyword.value = ''
+  addRefSourceId.value = null
+  addRefCandidates.value = []
+  addRefVisible.value = true
+  loadAddRefCandidates()
 }
 
-async function loadImportGroups() {
-  importLoading.value = true
+async function loadAddRefCandidates() {
+  addRefLoading.value = true
   try {
-    const data = await fetchGroups(null, null, importKeyword.value)
-    importGroups.value = data.filter((g) => g.id !== detailGroup.value?.id)
+    const data = await fetchGroups(
+      detailGroup.value.scope,
+      detailGroup.value.scope === 'lora' ? detailGroup.value.loraId : null,
+      addRefKeyword.value
+    )
+    // 排除自身和已引用的
+    const existingRefIds = new Set(detailRefs.value.map((r) => r.refGroupId))
+    addRefCandidates.value = data.filter(
+      (g) => g.id !== detailGroup.value.id && !existingRefIds.has(g.id)
+    )
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
-    importLoading.value = false
+    addRefLoading.value = false
   }
 }
 
-async function doImport() {
-  if (!importSourceId.value) {
-    ElMessage.warning('请选择要导入的词组')
-    return
-  }
-  importSaving.value = true
+async function doAddRef() {
+  if (!addRefSourceId.value) return
+  addRefSaving.value = true
   try {
-    const result = await importGroupItems(detailGroup.value.id, importSourceId.value)
-    ElMessage.success(
-      `已从「${result.sourceName}」导入 ${result.added} 条` +
-        (result.skipped > 0 ? `，跳过 ${result.skipped} 条重复` : '')
-    )
-    importVisible.value = false
-    await loadDetail(detailGroup.value.id)
+    await addGroupRef(detailGroup.value.id, addRefSourceId.value)
+    ElMessage.success('已添加引用')
+    addRefVisible.value = false
+    await navigateDetail(detailGroup.value.id)
     await load()
   } catch (e) {
     ElMessage.error(e.message)
   } finally {
-    importSaving.value = false
+    addRefSaving.value = false
+  }
+}
+
+async function onUpdateRef(ref) {
+  try {
+    await updateGroupRef(detailGroup.value.id, ref.id, ref.priority, ref.sortOrder)
+  } catch (e) {
+    ElMessage.error(e.message)
+    await navigateDetail(detailGroup.value.id)
+  }
+}
+
+async function onRemoveRef(ref) {
+  try {
+    await ElMessageBox.confirm(
+      `移除对「${ref.refGroupName}」的引用吗？`,
+      '移除引用',
+      { type: 'warning' }
+    )
+  } catch (e) {
+    return
+  }
+  try {
+    await removeGroupRef(detailGroup.value.id, ref.id)
+    ElMessage.success('已移除引用')
+    await navigateDetail(detailGroup.value.id)
+    await load()
+  } catch (e) {
+    ElMessage.error(e.message)
   }
 }
 
@@ -700,37 +896,66 @@ onMounted(async () => {
 .detail-head {
   display: flex;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   align-items: center;
 }
 
-.import-btn {
-  margin-left: auto;
+.ref-section {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #f7f8fa;
+  border: 1px solid #e8e9ec;
 }
 
-.import-tip {
-  margin: 0 0 10px;
+.ref-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-.import-table {
-  width: 100%;
-  margin-top: 10px;
+.ref-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c6270;
+}
+
+.ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ref-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid #e8e9ec;
+}
+
+.ref-name {
+  flex: 1;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref-priority {
+  width: 80px;
+}
+
+.ref-empty {
+  padding: 6px 0;
 }
 
 .detail-tabs {
   margin-top: 4px;
-}
-
-.add-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.picker-search {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
 }
 
 .prompt-text {
@@ -747,8 +972,26 @@ onMounted(async () => {
   margin-bottom: 12px;
 }
 
+.inherit-block {
+  margin-bottom: 12px;
+}
+
+.inherit-title {
+  font-size: 12px;
+  color: #8b909a;
+  margin-bottom: 6px;
+}
+
 .detail-footer {
   margin-top: 12px;
   text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.inherit-hint {
+  margin-right: 4px;
 }
 </style>
