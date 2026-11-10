@@ -47,6 +47,8 @@ public class WorkspaceService {
     private static final String POLARITY_NEG = "neg";
     /** 分类中的 negative 不作为正向分区，负向统一走 polarity */
     private static final String NEGATIVE_CATEGORY = "negative";
+    /** 画师分类不进普通分区，单独在画师卡片按 @画师名 输出 */
+    private static final String ARTIST_CATEGORY = "artist";
     private static final double MIN_WEIGHT = 0.1;
     private static final double MAX_WEIGHT = 2.0;
 
@@ -289,6 +291,9 @@ public class WorkspaceService {
         List<Map<String, Object>> negatives = new ArrayList<>();
         Set<String> negativeKeys = new HashSet<>();
 
+        List<Map<String, Object>> artists = new ArrayList<>();
+        Map<String, Map<String, Object>> artistIndex = new LinkedHashMap<>();
+
         // 1. 预设（角色基线）：正向按分类分区，负向进入负向层
         Preset preset = workspace.getPresetId() == null
                 ? null
@@ -299,6 +304,9 @@ public class WorkspaceService {
             for (PresetItem item : presetItems) {
                 if (POLARITY_NEG.equals(item.getPolarity())) {
                     addNegative(negatives, negativeKeys, item.getPrompt(), item.getNameZh(),
+                            item.getWeight(), "预设·" + preset.getName(), null);
+                } else if (ARTIST_CATEGORY.equals(item.getCategory())) {
+                    addArtist(artists, artistIndex, item.getPrompt(), item.getNameZh(),
                             item.getWeight(), "预设·" + preset.getName(), null);
                 } else {
                     String section = sectionFor(item.getCategory(), sectionValues);
@@ -336,9 +344,11 @@ public class WorkspaceService {
         // 3. 编辑区手动添加的标签 / 词组
         for (WorkspaceItem row : itemMapper.listByWorkspace(id)) {
             if (TYPE_TAG.equals(row.getItemType())) {
-                renderTagRow(row, sectionValues, blocksBySection, negatives, negativeKeys);
+                renderTagRow(row, sectionValues, blocksBySection, negatives, negativeKeys,
+                        artists, artistIndex);
             } else if (TYPE_GROUP.equals(row.getItemType())) {
-                renderGroupRow(row, sectionValues, blocksBySection, negatives, negativeKeys);
+                renderGroupRow(row, sectionValues, blocksBySection, negatives, negativeKeys,
+                        artists, artistIndex);
             }
         }
 
@@ -364,6 +374,12 @@ public class WorkspaceService {
             }
         }
 
+        // 画师统一以 @画师名 追加在正向尾部（anima 语法），权重格式 (@kantoku:1.2)
+        for (Map<String, Object> artist : artists) {
+            append(positiveText, formatPrompt("@" + text(artist.get("prompt")),
+                    weight(artist.get("weight"))));
+        }
+
         StringBuilder negativeText = new StringBuilder();
         for (Map<String, Object> item : negatives) {
             append(negativeText, formatPrompt(text(item.get("prompt")), weight(item.get("weight"))));
@@ -386,6 +402,8 @@ public class WorkspaceService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("workspace", workspace);
         result.put("sections", sectionPayload);
+        result.put("artists", artists);
+        result.put("artistCount", artists.size());
         result.put("negative", negatives);
         result.put("negativeCount", negatives.size());
         result.put("positiveCount", positiveCount);
@@ -398,7 +416,9 @@ public class WorkspaceService {
                               List<String> sectionValues,
                               Map<String, List<WorkspaceBlock>> blocksBySection,
                               List<Map<String, Object>> negatives,
-                              Set<String> negativeKeys) {
+                              Set<String> negativeKeys,
+                              List<Map<String, Object>> artists,
+                              Map<String, Map<String, Object>> artistIndex) {
         if (row.getPrompt() == null || row.getPrompt().isBlank()) {
             return; // 词条已被删除
         }
@@ -406,6 +426,11 @@ public class WorkspaceService {
         if (POLARITY_NEG.equals(polarity)) {
             // 编辑区手动添加的负向条目可单独移除
             addNegative(negatives, negativeKeys, row.getPrompt(), row.getNameZh(),
+                    row.getWeight(), "编辑区", row.getId());
+            return;
+        }
+        if (ARTIST_CATEGORY.equals(row.getCategory())) {
+            addArtist(artists, artistIndex, row.getPrompt(), row.getNameZh(),
                     row.getWeight(), "编辑区", row.getId());
             return;
         }
@@ -432,7 +457,9 @@ public class WorkspaceService {
                                 List<String> sectionValues,
                                 Map<String, List<WorkspaceBlock>> blocksBySection,
                                 List<Map<String, Object>> negatives,
-                                Set<String> negativeKeys) {
+                                Set<String> negativeKeys,
+                                List<Map<String, Object>> artists,
+                                Map<String, Map<String, Object>> artistIndex) {
         TagGroup group = groupMapper.findById(row.getRefId());
         if (group == null) {
             return; // 词组已被删除
@@ -441,6 +468,11 @@ public class WorkspaceService {
         for (TagGroupItem item : groupService.effectiveItems(group.getId())) {
             if (POLARITY_NEG.equals(item.getPolarity())) {
                 addNegative(negatives, negativeKeys, item.getPrompt(), item.getNameZh(),
+                        item.getWeight(), "词组·" + group.getName(), null);
+                continue;
+            }
+            if (ARTIST_CATEGORY.equals(item.getCategory())) {
+                addArtist(artists, artistIndex, item.getPrompt(), item.getNameZh(),
                         item.getWeight(), "词组·" + group.getName(), null);
                 continue;
             }
@@ -513,7 +545,8 @@ public class WorkspaceService {
     private List<CategoryOption> positiveSections() {
         List<CategoryOption> result = new ArrayList<>();
         for (CategoryOption option : settingService.getCategories()) {
-            if (!NEGATIVE_CATEGORY.equals(option.getValue())) {
+            if (!NEGATIVE_CATEGORY.equals(option.getValue())
+                    && !ARTIST_CATEGORY.equals(option.getValue())) {
                 result.add(option);
             }
         }
@@ -526,6 +559,7 @@ public class WorkspaceService {
     private String sectionFor(String category, List<String> sectionValues) {
         if (category == null || category.isBlank()
                 || NEGATIVE_CATEGORY.equals(category)
+                || ARTIST_CATEGORY.equals(category)
                 || !sectionValues.contains(category)) {
             return sectionValues.contains("other") ? "other" : sectionValues.get(0);
         }
@@ -539,6 +573,9 @@ public class WorkspaceService {
         String value = section.trim();
         if (NEGATIVE_CATEGORY.equals(value)) {
             throw new BizException("负向内容请直接使用负向 polarity");
+        }
+        if (ARTIST_CATEGORY.equals(value)) {
+            throw new BizException("画师请在画师卡片中选择");
         }
         for (CategoryOption option : positiveSections()) {
             if (value.equals(option.getValue())) {
@@ -601,6 +638,40 @@ public class WorkspaceService {
         item.put("source", source);
         item.put("workspaceItemId", workspaceItemId);
         item.put("removable", workspaceItemId != null);
+        list.add(item);
+    }
+
+    private void addArtist(List<Map<String, Object>> list,
+                           Map<String, Map<String, Object>> index,
+                           String prompt, String nameZh, Double weight, String source,
+                           Long workspaceItemId) {
+        String name = text(prompt);
+        while (name.startsWith("@")) {
+            name = name.substring(1).trim();
+        }
+        if (name.isEmpty()) {
+            return;
+        }
+        String key = name.toLowerCase(Locale.ROOT);
+        Map<String, Object> existing = index.get(key);
+        if (existing != null) {
+            // 同一个画师优先让「编辑区」来源可移除，权重以编辑区为准
+            if (existing.get("workspaceItemId") == null && workspaceItemId != null) {
+                existing.put("workspaceItemId", workspaceItemId);
+                existing.put("weight", weight == null ? 1.0 : weight);
+                existing.put("source", source);
+                existing.put("removable", true);
+            }
+            return;
+        }
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("prompt", name);
+        item.put("nameZh", nameZh);
+        item.put("weight", weight == null ? 1.0 : weight);
+        item.put("source", source);
+        item.put("workspaceItemId", workspaceItemId);
+        item.put("removable", workspaceItemId != null);
+        index.put(key, item);
         list.add(item);
     }
 

@@ -152,9 +152,10 @@
             <span class="muted">{{ row.note || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEditor(row)">编辑标签</el-button>
+            <el-button link type="primary" @click="openImages(row)">图片</el-button>
             <el-button link @click="copyPreset(row)">复制</el-button>
             <el-button link type="danger" @click="removePreset(row)">删除</el-button>
           </template>
@@ -164,6 +165,15 @@
         </template>
       </el-table>
     </el-drawer>
+
+    <!-- 参考图片 -->
+    <el-dialog v-model="imageDialog.visible" :title="imageDialog.title" width="560px" append-to-body>
+      <ImagePanel
+        v-if="imageDialog.visible"
+        ref-type="preset"
+        :ref-id="imageDialog.refId"
+      />
+    </el-dialog>
 
     <!-- 新增预设 -->
     <el-dialog v-model="presetDialogVisible" title="新增预设" width="480px" append-to-body>
@@ -312,6 +322,7 @@ import {
   updatePresetItem
 } from '@/api/lora'
 import SearchBox from '@/components/SearchBox.vue'
+import ImagePanel from '@/components/ImagePanel.vue'
 
 const DEFAULT_BASE_MODELS = ['sd15', 'sdxl', 'pony', 'illustrious', 'noobai', 'other']
 const baseModels = ref([...DEFAULT_BASE_MODELS])
@@ -355,6 +366,14 @@ const presetDrawerVisible = ref(false)
 const currentLora = ref(null)
 const presets = ref([])
 const presetLoading = ref(false)
+
+const imageDialog = reactive({ visible: false, refId: null, title: '' })
+
+function openImages(row) {
+  imageDialog.refId = row.id
+  imageDialog.title = `参考图片 · ${row.name}`
+  imageDialog.visible = true
+}
 
 const presetDialogVisible = ref(false)
 const presetSaving = ref(false)

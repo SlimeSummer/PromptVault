@@ -69,8 +69,9 @@
 
       <div class="stats">
         <span>正向 {{ detail.positiveCount }} 条</span>
+        <span>画师 {{ detail.artistCount }} 位</span>
         <span>负向 {{ detail.negativeCount }} 条</span>
-        <span class="muted">负向 = 全局负面词组 → 预设 → 编辑区，自动去重</span>
+        <span class="muted">画师按 @画师名 追加到正向末尾；负向 = 全局负面词组 → 预设 → 编辑区，自动去重</span>
       </div>
 
       <div v-loading="loading" class="sections">
@@ -138,6 +139,47 @@
           </div>
         </section>
       </div>
+
+      <section class="artist-card">
+        <header class="section-head">
+          <span class="section-title">画师</span>
+          <el-tag size="small" type="warning" effect="plain">{{ detail.artistCount }}</el-tag>
+          <span class="spacer"></span>
+          <el-button size="small" link type="primary" @click="openAddArtist">+ 选择画师</el-button>
+        </header>
+        <div v-if="detail.artists.length" class="artist-list">
+          <div v-for="(item, index) in detail.artists" :key="index" class="artist-line">
+            <code class="artist-prompt">@{{ item.prompt }}</code>
+            <span v-if="item.nameZh" class="zh">{{ item.nameZh }}</span>
+            <el-tag size="small" effect="plain">{{ item.source }}</el-tag>
+            <el-input-number
+              v-if="item.removable"
+              v-model="item.weight"
+              :min="0.1"
+              :max="2"
+              :step="0.1"
+              :precision="2"
+              size="small"
+              class="weight"
+              @change="onArtistWeightChange(item)"
+            />
+            <span v-else-if="Number(item.weight) !== 1" class="weight-text">×{{ item.weight }}</span>
+            <span class="spacer"></span>
+            <el-button
+              v-if="item.removable"
+              link
+              type="danger"
+              size="small"
+              @click="removeArtist(item)"
+            >
+              移除
+            </el-button>
+          </div>
+        </div>
+        <div v-else class="empty-hint">
+          还没有选择画师，点「选择画师」从词库挑选（输出为 @画师名，如 @kantoku）
+        </div>
+      </section>
 
       <section class="negative-card">
         <header class="section-head">
@@ -218,20 +260,25 @@
       </template>
     </el-dialog>
 
-    <!-- 添加标签 -->
-    <el-dialog v-model="tagDialog.visible" title="添加标签" width="640px">
+    <!-- 添加标签 / 选择画师 -->
+    <el-dialog
+      v-model="tagDialog.visible"
+      :title="tagDialog.artistOnly ? '选择画师' : '添加标签'"
+      width="640px"
+    >
       <div class="dialog-toolbar">
         <SearchBox
           v-model="tagDialog.keyword"
           :suggest="suggestTags"
           width="320px"
-          placeholder="搜索提示词 / 中文，回车确认"
+          :placeholder="tagDialog.artistOnly ? '搜索画师 / 中文，回车确认' : '搜索提示词 / 中文，回车确认'"
           @search="searchTags"
         />
-        <el-radio-group v-model="tagDialog.polarity" size="small">
+        <el-radio-group v-if="!tagDialog.artistOnly" v-model="tagDialog.polarity" size="small">
           <el-radio-button label="pos">正向</el-radio-button>
           <el-radio-button label="neg">负向</el-radio-button>
         </el-radio-group>
+        <span v-if="tagDialog.artistOnly" class="muted">只会显示「画师」分类的词条，输出为 @画师名</span>
       </div>
       <el-table :data="tagDialog.tags" size="small" max-height="380" border>
         <el-table-column prop="prompt" label="提示词" min-width="220">
@@ -376,7 +423,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, Upload } from '@element-plus/icons-vue'
 import SearchBox from '@/components/SearchBox.vue'
@@ -405,6 +452,7 @@ import { fetchTags, fetchTagSuggestions } from '@/api/tag'
 
 const workspaces = ref([])
 const currentId = ref(null)
+const CURRENT_WS_KEY = 'pv.workspace.currentId'
 const loading = ref(false)
 const saving = ref(false)
 const loras = ref([])
@@ -418,8 +466,10 @@ const importInput = ref(null)
 const detail = reactive({
   workspace: null,
   sections: [],
+  artists: [],
   negative: [],
   positiveCount: 0,
+  artistCount: 0,
   negativeCount: 0,
   positiveText: '',
   negativeText: ''
@@ -432,7 +482,13 @@ const wsDialog = reactive({
 })
 const formPresets = ref([])
 
-const tagDialog = reactive({ visible: false, keyword: '', polarity: 'pos', tags: [] })
+const tagDialog = reactive({
+  visible: false,
+  keyword: '',
+  polarity: 'pos',
+  artistOnly: false,
+  tags: []
+})
 const groupDialog = reactive({ visible: false, keyword: '', groups: [] })
 
 const saveArchiveDialog = reactive({ visible: false, name: '', note: '', saving: false })
@@ -469,11 +525,25 @@ async function loadGroupCategories() {
   }
 }
 
+// 记住当前编辑区：切换到其他页面再回来时停留在原编辑区
+watch(currentId, (value) => {
+  if (value) {
+    localStorage.setItem(CURRENT_WS_KEY, String(value))
+  } else {
+    localStorage.removeItem(CURRENT_WS_KEY)
+  }
+})
+
 async function loadWorkspaces(selectId = null) {
   try {
     workspaces.value = (await fetchWorkspaces()) || []
     if (selectId != null) {
       currentId.value = selectId
+    } else if (currentId.value == null) {
+      const stored = Number(localStorage.getItem(CURRENT_WS_KEY))
+      if (stored) {
+        currentId.value = stored
+      }
     }
     if (!workspaces.value.some((item) => item.id === currentId.value)) {
       currentId.value = workspaces.value.length ? workspaces.value[0].id : null
@@ -498,8 +568,10 @@ async function loadDetail() {
     const data = await fetchWorkspaceDetail(currentId.value)
     detail.workspace = data.workspace
     detail.sections = data.sections || []
+    detail.artists = data.artists || []
     detail.negative = data.negative || []
     detail.positiveCount = data.positiveCount || 0
+    detail.artistCount = data.artistCount || 0
     detail.negativeCount = data.negativeCount || 0
     detail.positiveText = data.positiveText || ''
     detail.negativeText = data.negativeText || ''
@@ -515,8 +587,10 @@ async function loadDetail() {
 function resetDetail() {
   detail.workspace = null
   detail.sections = []
+  detail.artists = []
   detail.negative = []
   detail.positiveCount = 0
+  detail.artistCount = 0
   detail.negativeCount = 0
   detail.positiveText = ''
   detail.negativeText = ''
@@ -647,6 +721,16 @@ async function removeWorkspace() {
 async function openAddTag() {
   tagDialog.keyword = ''
   tagDialog.polarity = 'pos'
+  tagDialog.artistOnly = false
+  tagDialog.tags = []
+  tagDialog.visible = true
+  await searchTags()
+}
+
+async function openAddArtist() {
+  tagDialog.keyword = ''
+  tagDialog.polarity = 'pos'
+  tagDialog.artistOnly = true
   tagDialog.tags = []
   tagDialog.visible = true
   await searchTags()
@@ -654,7 +738,12 @@ async function openAddTag() {
 
 async function searchTags() {
   try {
-    const data = await fetchTags({ keyword: tagDialog.keyword, page: 1, size: 20 })
+    const data = await fetchTags({
+      keyword: tagDialog.keyword,
+      page: 1,
+      size: 20,
+      category: tagDialog.artistOnly ? 'artist' : undefined
+    })
     tagDialog.tags = data.list || []
   } catch (e) {
     ElMessage.error(e.message)
@@ -675,10 +764,10 @@ async function addTag(row) {
     await addWorkspaceItem(currentId.value, {
       itemType: 'tag',
       refId: row.id,
-      polarity: tagDialog.polarity,
+      polarity: tagDialog.artistOnly ? 'pos' : tagDialog.polarity,
       weight: 1.0
     })
-    ElMessage.success(`已添加「${row.prompt}」`)
+    ElMessage.success(tagDialog.artistOnly ? `已选择画师 @${row.prompt}` : `已添加「${row.prompt}」`)
     await loadDetail()
   } catch (e) {
     ElMessage.error(e.message)
@@ -977,7 +1066,38 @@ async function removeArchive(row) {
   }
 }
 
-// --- 负向 ---
+// --- 画师 / 负向 ---
+
+async function onArtistWeightChange(item) {
+  try {
+    await updateWorkspaceItem(currentId.value, item.workspaceItemId, {
+      polarity: 'pos',
+      weight: item.weight,
+      sectionOverride: null
+    })
+    await loadDetail()
+  } catch (e) {
+    ElMessage.error(e.message)
+    await loadDetail()
+  }
+}
+
+async function removeArtist(item) {
+  try {
+    await ElMessageBox.confirm(`从编辑区移除画师「@${item.prompt}」？`, '移除画师', {
+      type: 'warning'
+    })
+  } catch (e) {
+    return
+  }
+  try {
+    await deleteWorkspaceItem(currentId.value, item.workspaceItemId)
+    ElMessage.success('已移除')
+    await loadDetail()
+  } catch (e) {
+    ElMessage.error(e.message)
+  }
+}
 
 async function removeNegative(item) {
   try {
@@ -1199,6 +1319,39 @@ code {
   text-align: center;
   font-size: 12px;
   color: #a8adb7;
+}
+
+.artist-card {
+  margin-top: 16px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  border-left: 3px solid #e6a23c;
+  box-shadow: 0 1px 3px rgba(20, 24, 31, 0.06);
+}
+
+.artist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.artist-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed #f2f2f5;
+  flex-wrap: wrap;
+}
+
+.artist-line:last-child {
+  border-bottom: none;
+}
+
+.artist-prompt {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 13px;
+  color: #b88230;
 }
 
 .negative-card {

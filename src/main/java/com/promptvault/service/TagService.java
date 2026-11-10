@@ -30,11 +30,14 @@ public class TagService {
     private final TagMapper tagMapper;
     private final SettingService settingService;
     private final TagClassifier classifier;
+    private final ImageService imageService;
 
-    public TagService(TagMapper tagMapper, SettingService settingService, TagClassifier classifier) {
+    public TagService(TagMapper tagMapper, SettingService settingService, TagClassifier classifier,
+                      ImageService imageService) {
         this.tagMapper = tagMapper;
         this.settingService = settingService;
         this.classifier = classifier;
+        this.imageService = imageService;
     }
 
     public Map<String, Object> page(String keyword, String category, String sort, String order,
@@ -136,6 +139,7 @@ public class TagService {
         }
         tagMapper.deleteFavorite(id);
         tagMapper.delete(id);
+        imageService.deleteByRef("tag", id);
     }
 
     /**
@@ -162,6 +166,7 @@ public class TagService {
             }
             tagMapper.deleteFavorite(id);
             tagMapper.delete(id);
+            imageService.deleteByRef("tag", id);
             ok++;
         }
         if (!blocked.isEmpty()) {

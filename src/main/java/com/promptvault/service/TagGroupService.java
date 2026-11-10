@@ -37,17 +37,20 @@ public class TagGroupService {
     private final LoraMapper loraMapper;
     private final TagMapper tagMapper;
     private final SettingService settingService;
+    private final ImageService imageService;
 
     public TagGroupService(TagGroupMapper groupMapper,
                            TagGroupItemMapper itemMapper,
                            LoraMapper loraMapper,
                            TagMapper tagMapper,
-                           SettingService settingService) {
+                           SettingService settingService,
+                           ImageService imageService) {
         this.groupMapper = groupMapper;
         this.itemMapper = itemMapper;
         this.loraMapper = loraMapper;
         this.tagMapper = tagMapper;
         this.settingService = settingService;
+        this.imageService = imageService;
     }
 
     public List<TagGroup> list(String scope, Long loraId, String keyword, String category) {
@@ -313,6 +316,8 @@ public class TagGroupService {
         groupMapper.deleteRefsByGroup(id);
         // 清理条目
         itemMapper.deleteByGroup(id);
+        // 清理参考图片
+        imageService.deleteByRef("group", id);
         // 最后删除组
         groupMapper.delete(id);
     }

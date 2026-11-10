@@ -155,3 +155,17 @@ CREATE TABLE IF NOT EXISTS import_log (
     parsed_count INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- 参考图片：词条 / 词组 / 预设的视觉效果图，可多张
+CREATE TABLE IF NOT EXISTS ref_image (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref_type     TEXT    NOT NULL,             -- tag / group / preset
+    ref_id       INTEGER NOT NULL,
+    filename     TEXT    NOT NULL,             -- 磁盘文件名（uuid + 扩展名）
+    orig_name    TEXT,
+    content_type TEXT,
+    size         INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ref_image_ref ON ref_image (ref_type, ref_id);

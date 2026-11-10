@@ -43,6 +43,7 @@ public class SettingService {
             new CategoryOption("action", "动作"),
             new CategoryOption("expression", "表情"),
             new CategoryOption("detail", "细节"),
+            new CategoryOption("artist", "画师"),
             new CategoryOption("negative", "负面"),
             new CategoryOption("other", "其他"));
 

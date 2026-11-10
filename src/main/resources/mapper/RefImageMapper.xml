@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.promptvault.mapper.RefImageMapper">
+
+    <insert id="insert" parameterType="com.promptvault.entity.RefImage"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ref_image
+            (ref_type, ref_id, filename, orig_name, content_type, size)
+        VALUES
+            (#{refType}, #{refId}, #{filename}, #{origName}, #{contentType}, #{size})
+    </insert>
+
+    <select id="findById" resultType="com.promptvault.entity.RefImage">
+        SELECT *
+        FROM ref_image
+        WHERE id = #{id}
+    </select>
+
+    <select id="listByRef" resultType="com.promptvault.entity.RefImage">
+        SELECT *
+        FROM ref_image
+        WHERE ref_type = #{refType} AND ref_id = #{refId}
+        ORDER BY id ASC
+    </select>
+
+    <delete id="delete">
+        DELETE FROM ref_image WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByRef">
+        DELETE FROM ref_image WHERE ref_type = #{refType} AND ref_id = #{refId}
+    </delete>
+
+    <select id="countByRef" resultType="long">
+        SELECT COUNT(*)
+        FROM ref_image
+        WHERE ref_type = #{refType} AND ref_id = #{refId}
+    </select>
+
+</mapper>

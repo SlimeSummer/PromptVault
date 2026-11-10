@@ -42,6 +42,7 @@ public class WorkspaceArchiveService {
     private static final String POLARITY_POS = "pos";
     private static final String POLARITY_NEG = "neg";
     private static final String NEGATIVE_CATEGORY = "negative";
+    private static final String ARTIST_CATEGORY = "artist";
     private static final double MIN_WEIGHT = 0.1;
     private static final double MAX_WEIGHT = 2.0;
 
@@ -337,7 +338,9 @@ public class WorkspaceArchiveService {
 
     private String sanitizeSection(Object value) {
         String section = text(value);
-        if (section.isEmpty() || NEGATIVE_CATEGORY.equals(section)) {
+        if (section.isEmpty()
+                || NEGATIVE_CATEGORY.equals(section)
+                || ARTIST_CATEGORY.equals(section)) {
             return null;
         }
         for (CategoryOption option : settingService.getCategories()) {

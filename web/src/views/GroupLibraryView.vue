@@ -53,7 +53,7 @@
     </section>
 
     <el-table v-loading="loading" :data="groups" stripe border class="table">
-      <el-table-column prop="name" label="名称" min-width="200">
+      <el-table-column prop="name" label="名称" min-width="200" sortable>
         <template #default="{ row }">
           <span class="group-name">{{ row.name }}</span>
           <el-tag v-if="row.kind === 'global_negative'" type="danger" effect="plain" size="small">
@@ -65,7 +65,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="范围" width="100" align="center">
+      <el-table-column label="范围" width="100" align="center" sortable :sort-method="sortByScope">
         <template #default="{ row }">
           <el-tag size="small" :type="row.scope === 'global' ? 'info' : 'success'" effect="light">
             {{ row.scope === 'global' ? '全局' : row.loraName }}
@@ -73,28 +73,36 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="itemCount" label="条目" width="80" align="center">
+      <el-table-column prop="itemCount" label="条目" width="80" align="center" sortable>
         <template #default="{ row }">
           <el-tag size="small" effect="plain">{{ row.itemCount || 0 }}</el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column label="类别" width="100" align="center">
+      <el-table-column
+        prop="category"
+        label="类别"
+        width="100"
+        align="center"
+        sortable
+        :sort-method="sortByCategoryLabel"
+      >
         <template #default="{ row }">
           <el-tag size="small" effect="plain" type="info">{{ categoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column prop="note" label="备注" min-width="180" show-overflow-tooltip>
+      <el-table-column prop="note" label="备注" min-width="180" show-overflow-tooltip sortable>
         <template #default="{ row }">
           <span class="muted">{{ row.note || '—' }}</span>
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="230" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">详情</el-button>
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="primary" @click="openImages(row)">图片</el-button>
           <el-button link @click="duplicate(row)">复制</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
@@ -360,6 +368,15 @@
       </div>
     </el-drawer>
 
+    <!-- 参考图片 -->
+    <el-dialog v-model="imageDialog.visible" :title="imageDialog.title" width="560px">
+      <ImagePanel
+        v-if="imageDialog.visible"
+        ref-type="group"
+        :ref-id="imageDialog.refId"
+      />
+    </el-dialog>
+
     <!-- 添加引用弹窗 -->
     <el-dialog v-model="addRefVisible" title="添加引用词组库" width="560px" append-to-body>
       <p class="muted">添加后会自动同步该词组库的条目；原库改动后这里会自动更新。</p>
@@ -428,6 +445,7 @@ import {
 } from '@/api/group'
 import { fetchLoras } from '@/api/lora'
 import AddTagRow from '@/components/AddTagRow.vue'
+import ImagePanel from '@/components/ImagePanel.vue'
 import SearchBox from '@/components/SearchBox.vue'
 
 const scopeOptions = [
@@ -462,6 +480,18 @@ const FALLBACK_CATEGORIES = [
 function categoryLabel(value) {
   const hit = groupCategories.value.find((c) => c.value === value)
   return hit ? hit.label : (value || '其他')
+}
+
+function sortByCategoryLabel(a, b) {
+  return categoryLabel(a.category).localeCompare(categoryLabel(b.category), 'zh-CN')
+}
+
+function scopeLabel(row) {
+  return row.scope === 'global' ? '全局' : (row.loraName || 'LoRA')
+}
+
+function sortByScope(a, b) {
+  return scopeLabel(a).localeCompare(scopeLabel(b), 'zh-CN')
 }
 
 // --- 编辑抽屉 ---
@@ -500,6 +530,14 @@ const addRefSourceId = ref(null)
 const addRefCandidates = ref([])
 const addRefLoading = ref(false)
 const addRefSaving = ref(false)
+
+const imageDialog = reactive({ visible: false, refId: null, title: '' })
+
+function openImages(row) {
+  imageDialog.refId = row.id
+  imageDialog.title = `参考图片 · ${row.name}`
+  imageDialog.visible = true
+}
 
 const posItems = computed(() => detailItems.value.filter((i) => i.polarity === 'pos'))
 const negItems = computed(() => detailItems.value.filter((i) => i.polarity === 'neg'))

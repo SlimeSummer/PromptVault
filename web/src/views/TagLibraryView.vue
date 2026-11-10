@@ -111,9 +111,10 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="130" fixed="right">
+      <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="primary" @click="openImages(row)">图片</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -174,6 +175,15 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submitForm">保存</el-button>
       </template>
+    </el-dialog>
+
+    <!-- 参考图片 -->
+    <el-dialog v-model="imageDialog.visible" :title="imageDialog.title" width="560px">
+      <ImagePanel
+        v-if="imageDialog.visible"
+        ref-type="tag"
+        :ref-id="imageDialog.refId"
+      />
     </el-dialog>
 
     <!-- 批量导入 -->
@@ -248,6 +258,7 @@ import {
   updateTag
 } from '@/api/tag'
 import { fetchTagCategories } from '@/api/setting'
+import ImagePanel from '@/components/ImagePanel.vue'
 
 const FALLBACK_CATEGORIES = [
   { value: 'trigger', label: '触发词' },
@@ -258,6 +269,7 @@ const FALLBACK_CATEGORIES = [
   { value: 'action', label: '动作' },
   { value: 'expression', label: '表情' },
   { value: 'detail', label: '细节' },
+  { value: 'artist', label: '画师' },
   { value: 'negative', label: '负面' },
   { value: 'other', label: '其他' }
 ]
@@ -273,6 +285,7 @@ const CATEGORY_TYPES = {
   action: 'danger',
   expression: 'warning',
   detail: 'info',
+  artist: 'warning',
   negative: 'danger',
   other: 'info'
 }
@@ -306,6 +319,14 @@ const batchCategory = ref('other')
 const batchAutoCategory = ref(false)
 const batchLoading = ref(false)
 const batchResult = ref(null)
+
+const imageDialog = reactive({ visible: false, refId: null, title: '' })
+
+function openImages(row) {
+  imageDialog.refId = row.id
+  imageDialog.title = `参考图片 · ${row.prompt}`
+  imageDialog.visible = true
+}
 
 function labelOf(value) {
   return categories.value.find((item) => item.value === value)?.label || value

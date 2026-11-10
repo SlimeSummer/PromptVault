@@ -1,5 +1,7 @@
 package com.promptvault.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -7,6 +9,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,10 +22,15 @@ public class SchemaUpgrade implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SchemaUpgrade.class);
 
-    private final JdbcTemplate jdbcTemplate;
+    private static final String KEY_TAG_CATEGORIES = "tag.categories";
+    private static final String KEY_ARTIST_SEEDED = "tag.categories.artist_seeded";
 
-    public SchemaUpgrade(JdbcTemplate jdbcTemplate) {
+    private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
+
+    public SchemaUpgrade(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -54,6 +62,64 @@ public class SchemaUpgrade implements ApplicationRunner {
         } catch (Exception e) {
             log.warn("迁移旧父级继承数据失败（可忽略）：{}", e.getMessage());
         }
+
+        ensureArtistCategory();
+    }
+
+    /**
+     * 老库的分类设置里补上「画师」分类。用 marker 只补一次，
+     * 之后用户主动删除不会再被加回来。
+     */
+    private void ensureArtistCategory() {
+        try {
+            if (settingValue(KEY_ARTIST_SEEDED) != null) {
+                return;
+            }
+            String raw = settingValue(KEY_TAG_CATEGORIES);
+            if (raw != null && !raw.isBlank()) {
+                List<Map<String, Object>> categories = objectMapper.readValue(
+                        raw, new TypeReference<List<Map<String, Object>>>() {
+                        });
+                boolean exists = categories.stream()
+                        .anyMatch(item -> "artist".equals(String.valueOf(item.get("value"))));
+                if (!exists) {
+                    Map<String, Object> artist = new LinkedHashMap<>();
+                    artist.put("value", "artist");
+                    artist.put("label", "画师");
+                    int negativeIndex = -1;
+                    for (int i = 0; i < categories.size(); i++) {
+                        if ("negative".equals(String.valueOf(categories.get(i).get("value")))) {
+                            negativeIndex = i;
+                            break;
+                        }
+                    }
+                    if (negativeIndex >= 0) {
+                        categories.add(negativeIndex, artist);
+                    } else {
+                        categories.add(artist);
+                    }
+                    jdbcTemplate.update(
+                            "UPDATE setting SET value = ?, updated_at = datetime('now','localtime') WHERE key = ?",
+                            objectMapper.writeValueAsString(categories), KEY_TAG_CATEGORIES);
+                    log.info("已在词条分类中补充「画师」分类");
+                }
+            }
+            jdbcTemplate.update(
+                    "INSERT OR REPLACE INTO setting (key, value, updated_at) VALUES (?, '1', datetime('now','localtime'))",
+                    KEY_ARTIST_SEEDED);
+        } catch (Exception e) {
+            log.warn("补充画师分类失败（可忽略）：{}", e.getMessage());
+        }
+    }
+
+    private String settingValue(String key) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT value FROM setting WHERE key = ?", key);
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Object value = rows.get(0).get("value");
+        return value == null ? null : value.toString();
     }
 
     private void ensureColumn(String table, String column, String alterSql) {

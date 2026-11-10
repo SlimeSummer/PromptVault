@@ -27,15 +27,18 @@ public class PresetService {
     private final PresetItemMapper itemMapper;
     private final LoraMapper loraMapper;
     private final TagMapper tagMapper;
+    private final ImageService imageService;
 
     public PresetService(PresetMapper presetMapper,
                          PresetItemMapper itemMapper,
                          LoraMapper loraMapper,
-                         TagMapper tagMapper) {
+                         TagMapper tagMapper,
+                         ImageService imageService) {
         this.presetMapper = presetMapper;
         this.itemMapper = itemMapper;
         this.loraMapper = loraMapper;
         this.tagMapper = tagMapper;
+        this.imageService = imageService;
     }
 
     public List<Preset> listByLora(Long loraId) {
@@ -81,6 +84,7 @@ public class PresetService {
             throw new BizException("该预设被 " + workspaceCount + " 个编辑区使用，请先更换或删除编辑区后再试");
         }
         itemMapper.deleteByPreset(id);
+        imageService.deleteByRef("preset", id);
         presetMapper.delete(id);
     }
 
